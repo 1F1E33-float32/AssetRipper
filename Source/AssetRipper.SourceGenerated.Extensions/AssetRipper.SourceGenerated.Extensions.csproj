@@ -1,9 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
-	<PropertyGroup>
-		<OutputPath>..\0Bins\Other\AssetRipper.SourceGenerated.Extensions\$(Configuration)\</OutputPath>
-		<IntermediateOutputPath>..\0Bins\obj\AssetRipper.SourceGenerated.Extensions\$(Configuration)\</IntermediateOutputPath>
-	</PropertyGroup>
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<ItemGroup>
 		<ProjectReference Include="..\AssetRipper.Assets\AssetRipper.Assets.csproj" />

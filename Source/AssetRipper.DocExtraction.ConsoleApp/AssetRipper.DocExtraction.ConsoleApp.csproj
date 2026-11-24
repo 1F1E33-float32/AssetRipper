@@ -2,8 +2,6 @@
 
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
-		<OutputPath>..\0Bins\AssetRipper.DocExtraction.ConsoleApp\$(Configuration)\</OutputPath>
-		<IntermediateOutputPath>..\0Bins\obj\AssetRipper.DocExtraction.ConsoleApp\$(Configuration)\</IntermediateOutputPath>
 	</PropertyGroup>
 
 

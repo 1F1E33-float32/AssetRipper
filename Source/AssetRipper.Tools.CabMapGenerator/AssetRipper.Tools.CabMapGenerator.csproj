@@ -2,8 +2,6 @@
 
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
-		<OutputPath>..\0Bins\AssetRipper.Tools.CabMapGenerator\$(Configuration)\</OutputPath>
-		<IntermediateOutputPath>..\0Bins\obj\AssetRipper.Tools.CabMapGenerator\$(Configuration)\</IntermediateOutputPath>
 	</PropertyGroup>
 
 	<ItemGroup>

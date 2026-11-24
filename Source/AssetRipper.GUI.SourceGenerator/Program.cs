@@ -5,7 +5,6 @@ public static class Program
 	public static void Main()
 	{
 		CleanJsonLocalizationFiles();
-		SettingsPageGenerator.Run();
 	}
 
 	private static void CleanJsonLocalizationFiles()

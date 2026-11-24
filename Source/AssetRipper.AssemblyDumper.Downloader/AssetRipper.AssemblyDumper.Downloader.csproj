@@ -2,8 +2,6 @@
 
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
-		<OutputPath>..\0Bins\AssetRipper.AssemblyDumper.Downloader\$(Configuration)\</OutputPath>
-		<IntermediateOutputPath>..\0Bins\obj\AssetRipper.AssemblyDumper.Downloader\$(Configuration)\</IntermediateOutputPath>
 	</PropertyGroup>
 
 </Project>

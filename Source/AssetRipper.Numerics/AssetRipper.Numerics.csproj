@@ -1,8 +1,3 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-	<PropertyGroup>
-		<OutputPath>..\0Bins\Other\AssetRipper.Numerics\$(Configuration)\</OutputPath>
-		<IntermediateOutputPath>..\0Bins\obj\AssetRipper.Numerics\$(Configuration)\</IntermediateOutputPath>
-	</PropertyGroup>
-
 </Project>

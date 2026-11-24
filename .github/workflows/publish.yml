@@ -14,12 +14,12 @@ jobs:
     strategy:
       matrix:
         config:
-          - { name: win_x64, os: windows-latest, runtime: win-x64, executable: AssetRipper.GUI.Free.exe, archive: zip }
-          - { name: win_arm64, os: windows-latest, runtime: win-arm64, executable: AssetRipper.GUI.Free.exe, archive: zip }
-          - { name: linux_x64, os: ubuntu-22.04, runtime: linux-x64, executable: AssetRipper.GUI.Free, archive: tar }
-          - { name: linux_arm64, os: ubuntu-22.04-arm, runtime: linux-arm64, executable: AssetRipper.GUI.Free, archive: tar }
-          - { name: mac_x64, os: macos-15, runtime: osx-x64, executable: AssetRipper.GUI.Free, archive: tar }
-          - { name: mac_arm64, os: macos-15, runtime: osx-arm64, executable: AssetRipper.GUI.Free, archive: tar }
+          - { name: win_x64, os: windows-latest, runtime: win-x64, executable: AssetRipper.exe, archive: zip }
+          - { name: win_arm64, os: windows-latest, runtime: win-arm64, executable: AssetRipper.exe, archive: zip }
+          - { name: linux_x64, os: ubuntu-22.04, runtime: linux-x64, executable: AssetRipper, archive: tar }
+          - { name: linux_arm64, os: ubuntu-22.04-arm, runtime: linux-arm64, executable: AssetRipper, archive: tar }
+          - { name: mac_x64, os: macos-15, runtime: osx-x64, executable: AssetRipper, archive: tar }
+          - { name: mac_arm64, os: macos-15, runtime: osx-arm64, executable: AssetRipper, archive: tar }
 
     steps:
       - uses: actions/checkout@v7
@@ -29,16 +29,15 @@ jobs:
           dotnet-version: 11.0.x
 
       - name: Publish
-        run: dotnet publish -c Release -r ${{ matrix.config.runtime }}
-        working-directory: ./Source/AssetRipper.GUI.Free/
+        run: dotnet publish AssetRipper.slnx -c Release -r ${{ matrix.config.runtime }} --self-contained false
 
       - name: List Files
         shell: bash
-        run: ls -R ./Source/0Bins/AssetRipper.GUI.Free/Release/
+        run: ls -R ./artifacts/publish/
 
-      - name: List Files
+      - name: Record Compile Time
         shell: bash
-        run: date -u > ./Source/0Bins/AssetRipper.GUI.Free/Release/${{ matrix.config.runtime }}/publish/compile_time.txt
+        run: date -u > ./artifacts/publish/compile_time.txt
 
       - name: Archive & Upload (zip)
         if: ${{ matrix.config.archive == 'zip' }}
@@ -46,22 +45,23 @@ jobs:
         with:
           name: AssetRipper_${{ matrix.config.name }}
           path: |
-            ./Source/0Bins/AssetRipper.GUI.Free/Release/${{ matrix.config.runtime }}/publish/${{ matrix.config.executable }}
-            ./Source/0Bins/AssetRipper.GUI.Free/Release/${{ matrix.config.runtime }}/publish/*.dll
-            ./Source/0Bins/AssetRipper.GUI.Free/Release/${{ matrix.config.runtime }}/publish/*.so
-            ./Source/0Bins/AssetRipper.GUI.Free/Release/${{ matrix.config.runtime }}/publish/*.dylib
-            ./Source/0Bins/AssetRipper.GUI.Free/Release/${{ matrix.config.runtime }}/publish/compile_time.txt
+            ./artifacts/publish/${{ matrix.config.executable }}
+            ./artifacts/publish/*.dll
+            ./artifacts/publish/*.json
+            ./artifacts/publish/*.so
+            ./artifacts/publish/*.dylib
+            ./artifacts/publish/compile_time.txt
           if-no-files-found: error
     
       - name: Create Archive (tar)
         if: ${{ matrix.config.archive == 'tar' }}
         shell: bash
-        working-directory: ./Source/0Bins/AssetRipper.GUI.Free/Release/${{ matrix.config.runtime }}/publish
-        run: tar cvJf "AssetRipper_${{ matrix.config.name }}.tar.xz" "${{ matrix.config.executable }}" compile_time.txt $(ls *.{dll,so,dylib} 2>/dev/null)
+        working-directory: ./artifacts/publish
+        run: tar cvJf "AssetRipper_${{ matrix.config.name }}.tar.xz" "${{ matrix.config.executable }}" compile_time.txt $(ls *.{dll,json,so,dylib} 2>/dev/null)
       
       - name: Upload Archive (tar)
         if: ${{ matrix.config.archive == 'tar' }}
         uses: actions/upload-artifact@v7
         with:
-          path: ./Source/0Bins/AssetRipper.GUI.Free/Release/${{ matrix.config.runtime }}/publish/AssetRipper_${{ matrix.config.name }}.tar.xz
+          path: ./artifacts/publish/AssetRipper_${{ matrix.config.name }}.tar.xz
           archive: false # we dont need to archive it twice

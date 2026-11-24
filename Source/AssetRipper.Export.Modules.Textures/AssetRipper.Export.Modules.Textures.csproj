@@ -1,9 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
-	<PropertyGroup>
-		<OutputPath>..\0Bins\Other\AssetRipper.Export.Modules.Textures\$(Configuration)\</OutputPath>
-		<IntermediateOutputPath>..\0Bins\obj\AssetRipper.Export.Modules.Textures\$(Configuration)\</IntermediateOutputPath>
-	</PropertyGroup>
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<ItemGroup>
 		<ProjectReference Include="..\AssetRipper.Export\AssetRipper.Export.csproj" />

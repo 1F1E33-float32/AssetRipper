@@ -3,7 +3,6 @@
 	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
 		<IsAotCompatible>false</IsAotCompatible>
-		<AppendTargetFrameworkToOutputPath>true</AppendTargetFrameworkToOutputPath>
 		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
 	</PropertyGroup>
 

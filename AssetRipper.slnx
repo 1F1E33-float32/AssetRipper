@@ -2,10 +2,11 @@
   <Folder Name="/Solution Items/">
     <File Path=".github/CONTRIBUTING.md" />
     <File Path=".gitignore" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Build.targets" />
     <File Path="LICENSE.md" />
     <File Path="README.md" />
     <File Path="Source/.editorconfig" />
-    <File Path="Source/Directory.Build.props" />
     <File Path="Source/generate.bat" />
   </Folder>
   <Folder Name="/Solution Items/Docs/">
@@ -78,14 +79,13 @@
   <Project Path="Source/AssetRipper.Export.PrimaryContent/AssetRipper.Export.PrimaryContent.csproj" />
   <Project Path="Source/AssetRipper.Export.UnityProjects/AssetRipper.Export.UnityProjects.csproj" />
   <Project Path="Source/AssetRipper.Export/AssetRipper.Export.csproj" />
+  <Project Path="Source/AssetRipper.GUI.Avalonia/AssetRipper.GUI.Avalonia.csproj" />
   <Project Path="Source/AssetRipper.GUI.Free/AssetRipper.GUI.Free.csproj" />
   <Project Path="Source/AssetRipper.GUI.Licensing.SourceGenerator/AssetRipper.GUI.Licensing.SourceGenerator.csproj" />
   <Project Path="Source/AssetRipper.GUI.Licensing/AssetRipper.GUI.Licensing.csproj" />
   <Project Path="Source/AssetRipper.GUI.Localizations.SourceGenerator/AssetRipper.GUI.Localizations.SourceGenerator.csproj" />
   <Project Path="Source/AssetRipper.GUI.Localizations/AssetRipper.GUI.Localizations.csproj" />
   <Project Path="Source/AssetRipper.GUI.SourceGenerator/AssetRipper.GUI.SourceGenerator.csproj" />
-  <Project Path="Source/AssetRipper.GUI.Web.Tests/AssetRipper.GUI.Web.Tests.csproj" />
-  <Project Path="Source/AssetRipper.GUI.Web/AssetRipper.GUI.Web.csproj" />
   <Project Path="Source/AssetRipper.Import/AssetRipper.Import.csproj" />
   <Project Path="Source/AssetRipper.IO.Files.SourceGenerator/AssetRipper.IO.Files.SourceGenerator.csproj" />
   <Project Path="Source/AssetRipper.IO.Files.Tests/AssetRipper.IO.Files.Tests.csproj" />
@@ -107,7 +107,6 @@
   <Project Path="Source/AssetRipper.Tools.RawTextureExtractor/AssetRipper.Tools.RawTextureExtractor.csproj" />
   <Project Path="Source/AssetRipper.Tools.SystemTester/AssetRipper.Tools.SystemTester.csproj" />
   <Project Path="Source/AssetRipper.Tools.TypeTreeExtractor/AssetRipper.Tools.TypeTreeExtractor.csproj" />
-  <Project Path="Source/AssetRipper.Web/AssetRipper.Web.csproj" />
   <Project Path="Source/AssetRipper.Yaml.Tests/AssetRipper.Yaml.Tests.csproj" />
   <Project Path="Source/AssetRipper.Yaml/AssetRipper.Yaml.csproj" />
   <Project Path="Source/UnityEngine/UnityEngine.csproj" />

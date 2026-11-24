@@ -4,6 +4,7 @@ packages/
 **/packages.config
 obj
 0Bins/
+artifacts/
 bin
 *.user
 .idea

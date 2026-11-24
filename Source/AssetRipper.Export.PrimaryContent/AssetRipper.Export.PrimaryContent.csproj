@@ -1,9 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
-	<PropertyGroup>
-		<OutputPath>..\0Bins\Other\AssetRipper.Export.PrimaryContent\$(Configuration)\</OutputPath>
-		<IntermediateOutputPath>..\0Bins\obj\AssetRipper.Export.PrimaryContent\$(Configuration)\</IntermediateOutputPath>
-	</PropertyGroup>
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<ItemGroup>
 		<ProjectReference Include="..\AssetRipper.Export.Modules.Audio\AssetRipper.Export.Modules.Audio.csproj" />

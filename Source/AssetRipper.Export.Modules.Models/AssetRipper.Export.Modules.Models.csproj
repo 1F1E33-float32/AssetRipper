@@ -1,9 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
-	<PropertyGroup>
-		<OutputPath>..\0Bins\Other\AssetRipper.Export.Modules.Models\$(Configuration)\</OutputPath>
-		<IntermediateOutputPath>..\0Bins\obj\AssetRipper.Export.Modules.Models\$(Configuration)\</IntermediateOutputPath>
-	</PropertyGroup>
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<ItemGroup>
 		<PackageReference Include="AssetRipper.SharpGLTF.Toolkit" Version="1.0.2" />

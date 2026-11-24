@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AssetRipper.Export.PrimaryContent\AssetRipper.Export.PrimaryContent.csproj" />
+    <ProjectReference Include="..\AssetRipper.Export.UnityProjects\AssetRipper.Export.UnityProjects.csproj" />
+    <ProjectReference Include="..\AssetRipper.GUI.Licensing\AssetRipper.GUI.Licensing.csproj" />
+    <ProjectReference Include="..\AssetRipper.GUI.Localizations\AssetRipper.GUI.Localizations.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.2.0" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.2.0" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.2.0" />
+  </ItemGroup>
+
+</Project>

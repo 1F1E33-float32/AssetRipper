@@ -1,3 +1,12 @@
-using AssetRipper.GUI.Web;
+using AssetRipper.GUI.Avalonia;
 
-WebApplicationLauncher.Launch(args);
+namespace AssetRipper.GUI.Free;
+
+internal static class Program
+{
+	[STAThread]
+	public static void Main(string[] args)
+	{
+		AvaloniaApplicationLauncher.Launch(args);
+	}
+}

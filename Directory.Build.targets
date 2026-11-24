@@ -1,0 +1,35 @@
+<Project>
+  <Target
+    Name="FilterRuntimeTargets"
+    AfterTargets="ResolvePackageAssets"
+    BeforeTargets="ResolveLockFileCopyLocalFiles;GenerateBuildDependencyFile;GeneratePublishDependencyFile;ComputeFilesToPublish"
+  >
+    <ItemGroup>
+      <RuntimeTargetsCopyLocalItems
+        Remove="@(RuntimeTargetsCopyLocalItems)"
+        Condition="'%(RuntimeTargetsCopyLocalItems.RuntimeIdentifier)' != '' and '%(RuntimeTargetsCopyLocalItems.RuntimeIdentifier)' != 'win-x64' and '%(RuntimeTargetsCopyLocalItems.RuntimeIdentifier)' != 'win-arm64' and '%(RuntimeTargetsCopyLocalItems.RuntimeIdentifier)' != 'osx-x64' and '%(RuntimeTargetsCopyLocalItems.RuntimeIdentifier)' != 'osx-arm64' and '%(RuntimeTargetsCopyLocalItems.RuntimeIdentifier)' != 'linux-x64' and '%(RuntimeTargetsCopyLocalItems.RuntimeIdentifier)' != 'linux-arm64'"
+      />
+    </ItemGroup>
+  </Target>
+
+  <!-- Clean every configuration and RID while preserving NuGet restore files. -->
+  <Target Name="CleanArtifactOutputs" AfterTargets="Clean" Condition="'$(UseArtifactsOutput)' == 'true'">
+    <PropertyGroup>
+      <_ArtifactsRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(ArtifactsPath)'))</_ArtifactsRoot>
+      <_ProjectIntermediateRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(BaseIntermediateOutputPath)'))</_ProjectIntermediateRoot>
+    </PropertyGroup>
+    <ItemGroup>
+      <_CleanArtifactDirectory Include="$(BaseOutputPath);$(OutputPath);$(PublishDir);$(_ArtifactsRoot)$(ArtifactsPublishOutputName)/$(ArtifactsProjectName)/" />
+      <_CleanArtifactDirectory Include="$(_ArtifactsRoot)$(ArtifactsPublishOutputName)/" Condition="'$(IsPublishable)' == 'true'" />
+      <_CleanArtifactDirectory
+        Include="$([System.IO.Directory]::GetDirectories('$(_ProjectIntermediateRoot)'))"
+        Condition="Exists('$(_ProjectIntermediateRoot)')"
+      />
+      <_CleanArtifactDirectory
+        Remove="@(_CleanArtifactDirectory)"
+        Condition="!$([System.String]::Copy('%(_CleanArtifactDirectory.FullPath)').StartsWith('$(_ArtifactsRoot)', System.StringComparison.OrdinalIgnoreCase)) or '%(_CleanArtifactDirectory.FullPath)' == '$(_ArtifactsRoot)'"
+      />
+    </ItemGroup>
+    <RemoveDir Directories="@(_CleanArtifactDirectory)" />
+  </Target>
+</Project>

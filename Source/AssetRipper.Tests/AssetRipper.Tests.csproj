@@ -3,8 +3,6 @@
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
 		<IsPackable>false</IsPackable>
-		<OutputPath>..\0Bins\Other\AssetRipper.Tests\$(Configuration)\</OutputPath>
-		<IntermediateOutputPath>..\0Bins\obj\AssetRipper.Tests\$(Configuration)\</IntermediateOutputPath>
 		<IsAotCompatible>false</IsAotCompatible>
 	</PropertyGroup>
 

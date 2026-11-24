@@ -1,0 +1,29 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <IsAotCompatible>true</IsAotCompatible>
+    <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
+    <DebugType>embedded</DebugType>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <UseArtifactsOutput>true</UseArtifactsOutput>
+    <ArtifactsPath Condition="'$(ArtifactsPath)' == ''">$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
+    <IsPublishable>false</IsPublishable>
+    <PublishDir Condition="'$(MSBuildProjectName)' == 'AssetRipper.GUI.Free' and '$(PublishDir)' == ''">$(ArtifactsPath)/publish/</PublishDir>
+
+    <VersionPrefix>2.0.0</VersionPrefix>
+    <Copyright>Copyright © ds5678</Copyright>
+    <Authors>ds5678</Authors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="System" />
+    <Using Include="System.Collections.Generic" />
+    <Using Include="System.Diagnostics.CodeAnalysis" />
+    <Using Include="System.IO" />
+    <Using Include="System.Linq" />
+    <Using Include="System.Threading" />
+    <Using Include="System.Threading.Tasks" />
+  </ItemGroup>
+</Project>
