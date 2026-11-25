@@ -13,15 +13,15 @@ Batch-verifies serialized assets in game archives. After building the GUI, `test
 - Defaults to 10 worker threads, processing one disk archive per task; entries within an archive are opened sequentially, read in full, and deserialized object by object.
 - `--threads N` (or `-j N`) sets concurrent archive tasks (must be a positive integer; `1` runs serially). Single-archive inputs run a single task.
 - Per-archive statistics are aggregated independently and JSONL records are written as completed; deferred script resolution synchronizes access to the shared assembly cache.
-- Interactive consoles render a single shared progress bar (refreshed every 125 ms, cycling secondary counters in narrow terminals) and initialization stage. Redirected output prints only the final summary and report paths. Detailed logs go to `log/`.
+- Interactive consoles render a single shared progress bar (refreshed every 125 ms, cycling secondary counters in narrow terminals) and initialization stage. Redirected output prints only the final summary and report paths. Only Warning and Error messages are written to `.log` files under `log/`; Info, Debug, and Verbose messages are discarded.
 - Unknown assets, unreadable assets, logged errors, and MonoBehaviour parsing failures fail the check; scanning continues after individual failures.
 - Objects with a complete plugin source type tree are also parsed across all source fields and verified against expected byte counts; source parse failures are reported as errors even when the compatibility model succeeds.
 - Script references and deferred MonoBehaviour payloads are resolved once all entries in the same archive are loaded. Missing cross-archive MonoScript references are recorded as `unresolved-script`.
 - Collections and decompression caches are released after each archive completes so memory scales primarily with active archive tasks.
-- `--skip-scripts` skips deferred script parsing (`skipped-script`) while still checking remaining objects. `--verbose` enables verbose file logging.
+- `--skip-scripts` skips deferred script parsing (`skipped-script`) while still checking remaining objects.
 - Pressing Ctrl+C preserves already written item records and writes the summary with the completed fraction.
 
-Three files with a shared timestamped prefix are written to `log/` beside the executable: `.log` (logs and exception stacks), `.jsonl` (per-item status with archive, entry, PathID, and ClassID), and `.summary.json` (aggregate counts). Entry status `loaded` only indicates that the entry was loaded; final verdicts come from individual `asset` records and the summary.
+Three files with a shared timestamped prefix are written to `log/` beside the executable: `.log` (warnings, errors, and their exception stacks), `.jsonl` (per-item status with archive, entry, PathID, and ClassID), and `.summary.json` (aggregate counts). Entry status `loaded` only indicates that the entry was loaded; final verdicts come from individual `asset` records and the summary.
 
 Exit codes: `0` when all enabled checks pass, `1` when parse failures, unknown assets, or unresolved scripts occur, `2` on invalid arguments or initialization errors, and `130` when cancelled. With `--skip-scripts`, exit code `0` reflects only the executed checks.
 

@@ -20,10 +20,10 @@ internal static class Program
 			if (args.Length == 0 || args.Contains("--help") || args.Contains("-h"))
 			{
 				Console.WriteLine(
-					"testcli --input <folder-or-file> --game <plugin-id> [--threads <count>] [--skip-scripts] [--verbose]\n"
+					"testcli --input <folder-or-file> --game <plugin-id> [--threads <count>] [--skip-scripts]\n"
 						+ "testcli --list-games\n"
 						+ $"--threads (-j): concurrent disk archives, default {DefaultThreads}. Entries within each archive are read sequentially.\n"
-						+ "The console shows one shared progress bar; detailed logs are written to log/.\n"
+						+ "The console shows one shared progress bar; only warnings and errors are logged to log/.\n"
 						+ "Reads each archive entry and asset. Results are written beside the executable under log/.\n"
 						+ "Exit codes: 0 = all checked items passed; 1 = failures/unknown/unresolved; 2 = setup error; 130 = cancelled."
 				);
@@ -59,9 +59,6 @@ internal static class Program
 					case "--skip-scripts":
 						skipScripts = true;
 						break;
-					case "--verbose":
-						Logger.AllowVerbose = true;
-						break;
 					default:
 						throw new ArgumentException($"Unknown option or missing value: {args[i]}");
 				}
@@ -75,11 +72,9 @@ internal static class Program
 				?? throw new ArgumentException($"Unknown game: {game}. Use --list-games to list installed plugin IDs.");
 
 			string prefix = Path.Combine(AppContext.BaseDirectory, "log", $"testcli_{DateTime.Now:yyyyMMdd_HHmmss_fff}_{Environment.ProcessId}");
-			Logger.Add(new FileLogger(prefix + ".log"));
-			ScanLog scanLog = new();
+			ScanLog scanLog = new(prefix + ".log");
 			Logger.Add(scanLog);
 			Logger.LogSystemInformation("AssetRipper testcli");
-			Logger.Info($"Input: {input}; game: {selected.Id}; script parsing: {!skipScripts}; archive threads: {threads}");
 			using ScanProgress progress = new(scanLog);
 			using CancellationTokenSource cancellation = new();
 			ConsoleCancelEventHandler onCancel = (_, e) =>
@@ -155,17 +150,6 @@ internal static class Program
 				summary.Errors = scanLog.Errors;
 				summary.Warnings = scanLog.Warnings;
 				File.WriteAllText(prefix + ".summary.json", JsonSerializer.Serialize(summary, new JsonSerializerOptions { WriteIndented = true }));
-				Logger.Info(
-					$"Archives: {summary.Archives}, entries: {summary.Entries}, resource files: {summary.Resources}, assets: {summary.Assets}"
-				);
-				Logger.Info(
-					$"Assets passed: {summary.PassedAssets}, failed: {summary.FailedAssets}, unknown: {summary.UnknownAssets}, "
-						+ $"unresolved scripts: {summary.UnresolvedScripts}, skipped scripts: {summary.SkippedScripts}"
-				);
-				Logger.Info(
-					$"Failed archives: {summary.FailedArchives}, failed entries: {summary.FailedEntries}, errors: {summary.Errors}, warnings: {summary.Warnings}"
-				);
-				Logger.Info($"Results: {prefix}.jsonl\nSummary: {prefix}.summary.json\nLog: {prefix}.log");
 				progress.Complete(summary, prefix);
 			}
 			return summary.Cancelled ? 130
@@ -201,8 +185,9 @@ internal static class Program
 	}
 }
 
-internal sealed class ScanLog : ILogger
+internal sealed class ScanLog(string filePath) : ILogger
 {
+	private readonly FileLogger fileLogger = new(filePath);
 	private long errors;
 	private long warnings;
 	private readonly AsyncLocal<ErrorScope?> currentArchive = new();
@@ -218,12 +203,17 @@ internal sealed class ScanLog : ILogger
 
 	public void Log(LogType type, LogCategory category, string message)
 	{
+		if (type is not (LogType.Warning or LogType.Error))
+		{
+			return;
+		}
+		fileLogger.Log(type, category, message);
 		if (type == LogType.Error)
 		{
 			Interlocked.Increment(ref errors);
 			currentArchive.Value?.RecordError();
 		}
-		else if (type == LogType.Warning)
+		else
 		{
 			Interlocked.Increment(ref warnings);
 		}

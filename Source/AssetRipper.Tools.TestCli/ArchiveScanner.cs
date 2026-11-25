@@ -43,7 +43,6 @@ internal sealed class ArchiveScanner(
 			{
 				cancellation.ThrowIfCancellationRequested();
 				summary.Entries++;
-				Logger.Info(LogCategory.Import, $"Opening {archive.Name}/{entry.Name}");
 				try
 				{
 					FileBase file = archive.ReadEntry(entry);
