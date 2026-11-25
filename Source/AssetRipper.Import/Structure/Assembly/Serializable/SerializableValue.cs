@@ -641,7 +641,7 @@ public record struct SerializableValue([property: DebuggerBrowsable(DebuggerBrow
 					case PrimitiveType.Complex:
 						{
 							int outerCount = reader.ReadInt32();
-							ThrowIfNotEnoughSpaceToReadArray(reader, etalon, outerCount);
+							ThrowIfNotEnoughSpaceToReadArray(reader, etalon, outerCount, elementsAreArrays: true);
 							IUnityAssetBase[][] result = CreateArray<IUnityAssetBase[]>(outerCount);
 
 							for (int i = 0; i < outerCount; i++)
@@ -701,10 +701,25 @@ public record struct SerializableValue([property: DebuggerBrowsable(DebuggerBrow
 		}
 	}
 
-	private static void ThrowIfNotEnoughSpaceToReadArray(EndianSpanReader reader, SerializableType.Field etalon, int count)
+	private static void ThrowIfNotEnoughSpaceToReadArray(
+		EndianSpanReader reader,
+		SerializableType.Field etalon,
+		int count,
+		bool elementsAreArrays = false
+	)
 	{
+		if (count < 0 || count > Array.MaxLength)
+		{
+			throw new InvalidDataException($"Invalid array length {count} for field {etalon.Name}.");
+		}
+		// Empty managed classes have no element payload, even when the list count is positive.
+		bool emptyElement = etalon.Type.Fields.Count == 0 && !etalon.Type.IsEnginePointer() && !etalon.Type.IsEngineStruct();
+		int minimumElementSize =
+			elementsAreArrays ? sizeof(int)
+			: emptyElement ? 0
+			: 1;
 		long remainingBytes = reader.Length - reader.Position;
-		if (remainingBytes < count)
+		if (remainingBytes < (long)count * minimumElementSize)
 		{
 			throw new EndOfStreamException(
 				$"When reading field {etalon.Name}, Stream only has {remainingBytes} bytes remaining, so {count} complex elements of type {etalon.Type.Name} cannot be read."
