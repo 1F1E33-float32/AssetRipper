@@ -10,8 +10,8 @@ using AssetRipper.SourceGenerated.Classes.ClassID_43;
 using AssetRipper.SourceGenerated.Classes.ClassID_83;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input.Platform;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -57,9 +57,11 @@ internal sealed class InspectorView : Grid, IDisposable
 
 	public async Task CopySelectionAsync()
 	{
-		if (ReferenceEquals(_contentHost.Child, _codeHexView)
+		if (
+			ReferenceEquals(_contentHost.Child, _codeHexView)
 			&& _codeHexView.SelectedTextForCopy is { } text
-			&& TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+			&& TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard
+		)
 		{
 			await clipboard.SetTextAsync(text);
 		}
@@ -78,11 +80,7 @@ internal sealed class InspectorView : Grid, IDisposable
 			Padding = new Thickness(12, 0),
 		};
 
-		Grid headerGrid = new()
-		{
-			ColumnDefinitions = new ColumnDefinitions("Auto,8,*,8,Auto,8,Auto"),
-			VerticalAlignment = VerticalAlignment.Center,
-		};
+		Grid headerGrid = new() { ColumnDefinitions = new ColumnDefinitions("Auto,8,*,8,Auto,8,Auto"), VerticalAlignment = VerticalAlignment.Center };
 
 		_headerIconSlot = new Border
 		{
@@ -158,11 +156,7 @@ internal sealed class InspectorView : Grid, IDisposable
 		Children.Add(_modeBar);
 
 		// Main preview content with 54px bottom clearance for the floating status dock
-		_contentHost = new Border
-		{
-			Padding = new Thickness(0, 0, 0, 54),
-			ClipToBounds = true,
-		};
+		_contentHost = new Border { Padding = new Thickness(0, 0, 0, 54), ClipToBounds = true };
 		Grid.SetRow(_contentHost, 2);
 		Children.Add(_contentHost);
 	}
@@ -281,7 +275,8 @@ internal sealed class InspectorView : Grid, IDisposable
 			if (_currentMode != mode)
 			{
 				_currentMode = mode;
-				bool hasPreview = AssetContentService.HasImageData(asset)
+				bool hasPreview =
+					AssetContentService.HasImageData(asset)
 					|| AssetContentService.HasAudioData(asset)
 					|| AssetContentService.HasModelData(asset)
 					|| AssetContentService.HasTextData(asset);
@@ -310,9 +305,7 @@ internal sealed class InspectorView : Grid, IDisposable
 		if (mode == InspectorMode.Dependencies)
 		{
 			List<InfoRow> rows = AssetContentService.GetDependencyRows(asset);
-			_contentHost.Child = rows.Count > 0
-				? BuildPropertyTable(rows)
-				: BuildCenteredMessage("No dependencies");
+			_contentHost.Child = rows.Count > 0 ? BuildPropertyTable(rows) : BuildCenteredMessage("No dependencies");
 			return;
 		}
 
@@ -320,151 +313,161 @@ internal sealed class InspectorView : Grid, IDisposable
 		ShowLoadingState();
 		IDisposable taskScope = ActivityLogService.Instance.BeginTask($"Preparing preview… · {asset.GetBestName()}");
 
-		Task.Run(() =>
-		{
-			try
+		Task.Run(
+			() =>
 			{
-				if (token.IsCancellationRequested)
+				try
 				{
-					return;
-				}
-
-				if (mode == InspectorMode.Preview)
-				{
-					if (AssetContentService.HasImageData(asset))
+					if (token.IsCancellationRequested)
 					{
-						DecodedImageResult? img = AssetContentService.DecodeImage(asset);
-						Dispatcher.UIThread.Post(() =>
-						{
-							if (token.IsCancellationRequested) return;
-							CurrentDecodedImage = img;
-							if (img is not null)
-							{
-								_headerMetaText.Text = $"{img.Width}×{img.Height} · PathID {asset.PathID}";
-								_imageView.SetImage(img);
-								_contentHost.Child = _imageView;
-							}
-							else
-							{
-								_contentHost.Child = BuildCenteredMessage("Image data could not be decoded.");
-							}
-						});
 						return;
 					}
 
-					if (asset is IAudioClip clip)
+					if (mode == InspectorMode.Preview)
 					{
-						DecodedAudioResult? audio = AssetContentService.DecodeAudio(clip, out string? error);
+						if (AssetContentService.HasImageData(asset))
+						{
+							DecodedImageResult? img = AssetContentService.DecodeImage(asset);
+							Dispatcher.UIThread.Post(() =>
+							{
+								if (token.IsCancellationRequested)
+									return;
+								CurrentDecodedImage = img;
+								if (img is not null)
+								{
+									_headerMetaText.Text = $"{img.Width}×{img.Height} · PathID {asset.PathID}";
+									_imageView.SetImage(img);
+									_contentHost.Child = _imageView;
+								}
+								else
+								{
+									_contentHost.Child = BuildCenteredMessage("Image data could not be decoded.");
+								}
+							});
+							return;
+						}
+
+						if (asset is IAudioClip clip)
+						{
+							DecodedAudioResult? audio = AssetContentService.DecodeAudio(clip, out string? error);
+							Dispatcher.UIThread.Post(() =>
+							{
+								if (token.IsCancellationRequested)
+									return;
+								CurrentDecodedAudio = audio;
+								if (audio is not null && audio.Samples.Length > 0)
+								{
+									_audioView.SetAudio(audio);
+									_contentHost.Child = _audioView;
+								}
+								else if (audio is not null)
+								{
+									_codeHexView.ShowHex(audio.EncodedData);
+									_contentHost.Child = _codeHexView;
+								}
+								else
+								{
+									_contentHost.Child = BuildCenteredMessage(error ?? "Audio data could not be decoded.");
+								}
+							});
+							return;
+						}
+
+						if (asset is IMesh mesh)
+						{
+							ModelGeometry? geo = AssetContentService.ExtractMeshGeometry(mesh);
+							Dispatcher.UIThread.Post(() =>
+							{
+								if (token.IsCancellationRequested)
+									return;
+								if (geo is not null)
+								{
+									_modelView.SetModel(geo);
+									_contentHost.Child = _modelView;
+								}
+								else
+								{
+									_contentHost.Child = BuildCenteredMessage("Mesh geometry could not be extracted.");
+								}
+							});
+							return;
+						}
+
+						if (AssetContentService.HasTextData(asset))
+						{
+							string text = AssetContentService.GetTextContent(asset);
+							Dispatcher.UIThread.Post(() =>
+							{
+								if (token.IsCancellationRequested)
+									return;
+								_codeHexView.ShowText(text);
+								_contentHost.Child = _codeHexView;
+							});
+							return;
+						}
+					}
+					else if (mode == InspectorMode.Yaml)
+					{
+						string yaml = AssetContentService.GetYamlContent(asset);
 						Dispatcher.UIThread.Post(() =>
 						{
-							if (token.IsCancellationRequested) return;
-							CurrentDecodedAudio = audio;
-							if (audio is not null && audio.Samples.Length > 0)
+							if (token.IsCancellationRequested)
+								return;
+							_codeHexView.ShowText(yaml);
+							_contentHost.Child = _codeHexView;
+						});
+						return;
+					}
+					else if (mode == InspectorMode.Json)
+					{
+						string json = AssetContentService.GetJsonContent(asset);
+						Dispatcher.UIThread.Post(() =>
+						{
+							if (token.IsCancellationRequested)
+								return;
+							_codeHexView.ShowText(json);
+							_contentHost.Child = _codeHexView;
+						});
+						return;
+					}
+					else if (mode == InspectorMode.Hex)
+					{
+						(byte[] data, _) = AssetContentService.GetBinaryData(asset);
+						Dispatcher.UIThread.Post(() =>
+						{
+							if (token.IsCancellationRequested)
+								return;
+							if (data.Length > 0)
 							{
-								_audioView.SetAudio(audio);
-								_contentHost.Child = _audioView;
-							}
-							else if (audio is not null)
-							{
-								_codeHexView.ShowHex(audio.EncodedData);
+								_codeHexView.ShowHex(data);
 								_contentHost.Child = _codeHexView;
 							}
 							else
 							{
-								_contentHost.Child = BuildCenteredMessage(error ?? "Audio data could not be decoded.");
+								_contentHost.Child = BuildCenteredMessage("No raw binary data.");
 							}
 						});
 						return;
 					}
-
-					if (asset is IMesh mesh)
-					{
-						ModelGeometry? geo = AssetContentService.ExtractMeshGeometry(mesh);
-						Dispatcher.UIThread.Post(() =>
-						{
-							if (token.IsCancellationRequested) return;
-							if (geo is not null)
-							{
-								_modelView.SetModel(geo);
-								_contentHost.Child = _modelView;
-							}
-							else
-							{
-								_contentHost.Child = BuildCenteredMessage("Mesh geometry could not be extracted.");
-							}
-						});
-						return;
-					}
-
-					if (AssetContentService.HasTextData(asset))
-					{
-						string text = AssetContentService.GetTextContent(asset);
-						Dispatcher.UIThread.Post(() =>
-						{
-							if (token.IsCancellationRequested) return;
-							_codeHexView.ShowText(text);
-							_contentHost.Child = _codeHexView;
-						});
-						return;
-					}
 				}
-				else if (mode == InspectorMode.Yaml)
+				catch (Exception ex)
 				{
-					string yaml = AssetContentService.GetYamlContent(asset);
+					ActivityLogService.Instance.ReportError("Preview failed.", ex);
 					Dispatcher.UIThread.Post(() =>
 					{
-						if (token.IsCancellationRequested) return;
-						_codeHexView.ShowText(yaml);
-						_contentHost.Child = _codeHexView;
-					});
-					return;
-				}
-				else if (mode == InspectorMode.Json)
-				{
-					string json = AssetContentService.GetJsonContent(asset);
-					Dispatcher.UIThread.Post(() =>
-					{
-						if (token.IsCancellationRequested) return;
-						_codeHexView.ShowText(json);
-						_contentHost.Child = _codeHexView;
-					});
-					return;
-				}
-				else if (mode == InspectorMode.Hex)
-				{
-					(byte[] data, _) = AssetContentService.GetBinaryData(asset);
-					Dispatcher.UIThread.Post(() =>
-					{
-						if (token.IsCancellationRequested) return;
-						if (data.Length > 0)
+						if (!token.IsCancellationRequested)
 						{
-							_codeHexView.ShowHex(data);
-							_contentHost.Child = _codeHexView;
-						}
-						else
-						{
-							_contentHost.Child = BuildCenteredMessage("No raw binary data.");
+							_contentHost.Child = BuildCenteredMessage($"Error: {ex.Message}");
 						}
 					});
-					return;
 				}
-			}
-			catch (Exception ex)
-			{
-				ActivityLogService.Instance.ReportError("Preview failed.", ex);
-				Dispatcher.UIThread.Post(() =>
+				finally
 				{
-					if (!token.IsCancellationRequested)
-					{
-						_contentHost.Child = BuildCenteredMessage($"Error: {ex.Message}");
-					}
-				});
-			}
-			finally
-			{
-				taskScope.Dispose();
-			}
-		}, token);
+					taskScope.Dispose();
+				}
+			},
+			token
+		);
 	}
 
 	private void LoadResourcePreview(ResourceFile resource)
@@ -475,16 +478,20 @@ internal sealed class InspectorView : Grid, IDisposable
 		CancellationToken token = _loadCts.Token;
 
 		ShowLoadingState();
-		Task.Run(() =>
-		{
-			byte[] bytes = AssetContentService.ReadResourceBytes(resource);
-			Dispatcher.UIThread.Post(() =>
+		Task.Run(
+			() =>
 			{
-				if (token.IsCancellationRequested) return;
-				_codeHexView.ShowHex(bytes);
-				_contentHost.Child = _codeHexView;
-			});
-		}, token);
+				byte[] bytes = AssetContentService.ReadResourceBytes(resource);
+				Dispatcher.UIThread.Post(() =>
+				{
+					if (token.IsCancellationRequested)
+						return;
+					_codeHexView.ShowHex(bytes);
+					_contentHost.Child = _codeHexView;
+				});
+			},
+			token
+		);
 	}
 
 	private void ShowLoadingState()
@@ -497,14 +504,16 @@ internal sealed class InspectorView : Grid, IDisposable
 			VerticalAlignment = VerticalAlignment.Center,
 		};
 		panel.Children.Add(new VnlensSpinner(14, Palette.Secondary));
-		panel.Children.Add(new TextBlock
-		{
-			Text = "Preparing preview…",
-			FontFamily = Palette.UiFont,
-			FontSize = 12,
-			Foreground = Palette.Secondary,
-			VerticalAlignment = VerticalAlignment.Center,
-		});
+		panel.Children.Add(
+			new TextBlock
+			{
+				Text = "Preparing preview…",
+				FontFamily = Palette.UiFont,
+				FontSize = 12,
+				Foreground = Palette.Secondary,
+				VerticalAlignment = VerticalAlignment.Center,
+			}
+		);
 		_contentHost.Child = panel;
 	}
 
@@ -525,10 +534,7 @@ internal sealed class InspectorView : Grid, IDisposable
 
 	private Control BuildPropertyTable(List<InfoRow> rows)
 	{
-		StackPanel stack = new()
-		{
-			Orientation = Orientation.Vertical,
-		};
+		StackPanel stack = new() { Orientation = Orientation.Vertical };
 
 		for (int i = 0; i < rows.Count; i++)
 		{
@@ -541,10 +547,7 @@ internal sealed class InspectorView : Grid, IDisposable
 				BorderThickness = new Thickness(0, 0, 0, 1),
 			};
 
-			Grid grid = new()
-			{
-				ColumnDefinitions = new ColumnDefinitions("180,1,*"),
-			};
+			Grid grid = new() { ColumnDefinitions = new ColumnDefinitions("180,1,*") };
 
 			TextBlock keyText = new()
 			{
@@ -559,11 +562,7 @@ internal sealed class InspectorView : Grid, IDisposable
 			Grid.SetColumn(keyText, 0);
 			grid.Children.Add(keyText);
 
-			Border divider = new()
-			{
-				Width = 1,
-				Background = Palette.Border,
-			};
+			Border divider = new() { Width = 1, Background = Palette.Border };
 			Grid.SetColumn(divider, 1);
 			grid.Children.Add(divider);
 

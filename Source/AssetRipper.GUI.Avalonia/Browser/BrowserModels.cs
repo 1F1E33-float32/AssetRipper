@@ -4,6 +4,7 @@ using AssetRipper.Assets.Collections;
 using AssetRipper.GUI.Avalonia.Services;
 using AssetRipper.GUI.Avalonia.Theme;
 using AssetRipper.GUI.Localizations;
+using AssetRipper.Import.GamePlugins;
 using AssetRipper.IO.Files;
 using AssetRipper.IO.Files.ResourceFiles;
 using AssetRipper.Processing.Textures;
@@ -22,7 +23,6 @@ using AssetRipper.SourceGenerated.Classes.ClassID_43;
 using AssetRipper.SourceGenerated.Classes.ClassID_48;
 using AssetRipper.SourceGenerated.Classes.ClassID_49;
 using AssetRipper.SourceGenerated.Classes.ClassID_83;
-using AssetRipper.Import.GamePlugins;
 
 namespace AssetRipper.GUI.Avalonia.Browser;
 
@@ -99,18 +99,19 @@ internal sealed class BrowserItem
 		return IconKind.File;
 	}
 
-	public static string GetKindLabel(BrowserItem item) => item.Kind switch
-	{
-		BrowserItemKind.MountedArchive => Localization.Bundle,
-		BrowserItemKind.MountedEntry => Localization.Collection,
-		BrowserItemKind.Bundle => Localization.Bundle,
-		BrowserItemKind.Collection => Localization.Collection,
-		BrowserItemKind.Scene => Localization.Scene,
-		BrowserItemKind.ResourceFile => Localization.Resources,
-		BrowserItemKind.FailedFile => Localization.FailedFiles,
-		BrowserItemKind.Asset => item.ClassName ?? "Asset",
-		_ => "Folder",
-	};
+	public static string GetKindLabel(BrowserItem item) =>
+		item.Kind switch
+		{
+			BrowserItemKind.MountedArchive => Localization.Bundle,
+			BrowserItemKind.MountedEntry => Localization.Collection,
+			BrowserItemKind.Bundle => Localization.Bundle,
+			BrowserItemKind.Collection => Localization.Collection,
+			BrowserItemKind.Scene => Localization.Scene,
+			BrowserItemKind.ResourceFile => Localization.Resources,
+			BrowserItemKind.FailedFile => Localization.FailedFiles,
+			BrowserItemKind.Asset => item.ClassName ?? "Asset",
+			_ => "Folder",
+		};
 }
 
 internal static class BrowserFolderBuilder
@@ -121,7 +122,17 @@ internal static class BrowserFolderBuilder
 		if (GameFileLoader.MountedGame is { } mounted)
 		{
 			foreach (GameArchive archive in mounted.Archives)
-				items.Add(new BrowserItem { Name = archive.Name, Kind = BrowserItemKind.MountedArchive, Icon = IconKind.Archive, IsContainer = true, Target = archive, Meta = "Mounted" });
+				items.Add(
+					new BrowserItem
+					{
+						Name = archive.Name,
+						Kind = BrowserItemKind.MountedArchive,
+						Icon = IconKind.Archive,
+						IsContainer = true,
+						Target = archive,
+						Meta = "Mounted",
+					}
+				);
 		}
 
 		// Add a virtual Scenes folder if the loaded project contains scenes
@@ -129,15 +140,18 @@ internal static class BrowserFolderBuilder
 		if (scenes.Count > 0)
 		{
 			scenes.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
-			items.Insert(0, new BrowserItem
-			{
-				Name = "Scenes",
-				Kind = BrowserItemKind.ScenesGroup,
-				Icon = IconKind.Folder,
-				IsContainer = true,
-				Target = scenes,
-				Meta = scenes.Count.ToString(),
-			});
+			items.Insert(
+				0,
+				new BrowserItem
+				{
+					Name = "Scenes",
+					Kind = BrowserItemKind.ScenesGroup,
+					Icon = IconKind.Folder,
+					IsContainer = true,
+					Target = scenes,
+					Meta = scenes.Count.ToString(),
+				}
+			);
 		}
 
 		return items;
@@ -161,12 +175,13 @@ internal static class BrowserFolderBuilder
 	private static List<BrowserItem> BuildArchiveItems(GameArchive archive)
 	{
 		// Plugin relationships come from the archive index; listing must not decode any entries.
-		Dictionary<int, GameArchiveEntry[]> companions = archive.Entries
-			.Where(entry => entry.IsSerialized)
-			.ToDictionary(entry => entry.Index, entry => archive.GetResources(entry)
-				.Where(resource => !resource.IsSerialized).DistinctBy(resource => resource.Index).ToArray());
-		HashSet<int> boundResources = companions.Values.SelectMany(resources => resources)
-			.Select(resource => resource.Index).ToHashSet();
+		Dictionary<int, GameArchiveEntry[]> companions = archive
+			.Entries.Where(entry => entry.IsSerialized)
+			.ToDictionary(
+				entry => entry.Index,
+				entry => archive.GetResources(entry).Where(resource => !resource.IsSerialized).DistinctBy(resource => resource.Index).ToArray()
+			);
+		HashSet<int> boundResources = companions.Values.SelectMany(resources => resources).Select(resource => resource.Index).ToHashSet();
 		List<BrowserItem> items = new();
 		foreach (GameArchiveEntry entry in archive.Entries)
 		{
@@ -175,16 +190,18 @@ internal static class BrowserFolderBuilder
 				continue;
 			}
 			GameArchiveEntry[] resources = companions.GetValueOrDefault(entry.Index) ?? [];
-			items.Add(new BrowserItem
-			{
-				Name = entry.Name,
-				Kind = BrowserItemKind.MountedEntry,
-				Icon = entry.IsSerialized ? IconKind.Library : IconKind.Data,
-				IsContainer = entry.IsSerialized,
-				Target = (archive, entry),
-				Meta = resources.Length > 0 ? $"{resources.Length + 1} files" : AssetContentService.FormatBytes(entry.Length),
-				CompanionNames = resources.Select(resource => resource.Name).ToArray(),
-			});
+			items.Add(
+				new BrowserItem
+				{
+					Name = entry.Name,
+					Kind = BrowserItemKind.MountedEntry,
+					Icon = entry.IsSerialized ? IconKind.Library : IconKind.Data,
+					IsContainer = entry.IsSerialized,
+					Target = (archive, entry),
+					Meta = resources.Length > 0 ? $"{resources.Length + 1} files" : AssetContentService.FormatBytes(entry.Length),
+					CompanionNames = resources.Select(resource => resource.Name).ToArray(),
+				}
+			);
 		}
 		return items;
 	}
@@ -200,15 +217,17 @@ internal static class BrowserFolderBuilder
 			foreach (Bundle child in bundle.Bundles.OrderBy(b => b.Name, StringComparer.OrdinalIgnoreCase))
 			{
 				int count = child.Bundles.Count + child.Collections.Count + child.Resources.Count + child.FailedFiles.Count;
-				items.Add(new BrowserItem
-				{
-					Name = string.IsNullOrEmpty(child.Name) ? "(Unnamed Bundle)" : child.Name,
-					Kind = BrowserItemKind.Bundle,
-					Icon = IconKind.Archive,
-					IsContainer = true,
-					Target = child,
-					Meta = count.ToString(),
-				});
+				items.Add(
+					new BrowserItem
+					{
+						Name = string.IsNullOrEmpty(child.Name) ? "(Unnamed Bundle)" : child.Name,
+						Kind = BrowserItemKind.Bundle,
+						Icon = IconKind.Archive,
+						IsContainer = true,
+						Target = child,
+						Meta = count.ToString(),
+					}
+				);
 			}
 		}
 
@@ -220,18 +239,18 @@ internal static class BrowserFolderBuilder
 				{
 					continue;
 				}
-				items.Add(new BrowserItem
-				{
-					Name = string.IsNullOrEmpty(col.Name) ? "(Unnamed Collection)" : col.Name,
-					Kind = BrowserItemKind.Collection,
-					Icon = IconKind.Library,
-					IsContainer = true,
-					Target = col,
-					Meta = companions.TryGetValue(col, out ResourceFile[]? resources)
-						? $"{resources.Length + 1} files"
-						: col.Count.ToString(),
-					CompanionNames = resources?.Select(resource => resource.Name).ToArray() ?? [],
-				});
+				items.Add(
+					new BrowserItem
+					{
+						Name = string.IsNullOrEmpty(col.Name) ? "(Unnamed Collection)" : col.Name,
+						Kind = BrowserItemKind.Collection,
+						Icon = IconKind.Library,
+						IsContainer = true,
+						Target = col,
+						Meta = companions.TryGetValue(col, out ResourceFile[]? resources) ? $"{resources.Length + 1} files" : col.Count.ToString(),
+						CompanionNames = resources?.Select(resource => resource.Name).ToArray() ?? [],
+					}
+				);
 			}
 		}
 
@@ -244,15 +263,17 @@ internal static class BrowserFolderBuilder
 					continue;
 				}
 				long size = res.Stream.CanSeek ? res.Stream.Length : 0;
-				items.Add(new BrowserItem
-				{
-					Name = res.NameFixed,
-					Kind = BrowserItemKind.ResourceFile,
-					Icon = IconKind.Data,
-					IsContainer = false,
-					Target = res,
-					Meta = size > 0 ? AssetContentService.FormatBytes(size) : "",
-				});
+				items.Add(
+					new BrowserItem
+					{
+						Name = res.NameFixed,
+						Kind = BrowserItemKind.ResourceFile,
+						Icon = IconKind.Data,
+						IsContainer = false,
+						Target = res,
+						Meta = size > 0 ? AssetContentService.FormatBytes(size) : "",
+					}
+				);
 			}
 		}
 
@@ -260,15 +281,17 @@ internal static class BrowserFolderBuilder
 		{
 			foreach (FailedFile failed in bundle.FailedFiles.OrderBy(f => f.NameFixed, StringComparer.OrdinalIgnoreCase))
 			{
-				items.Add(new BrowserItem
-				{
-					Name = failed.NameFixed,
-					Kind = BrowserItemKind.FailedFile,
-					Icon = IconKind.Alert,
-					IsContainer = false,
-					Target = failed,
-					Meta = "Failed",
-				});
+				items.Add(
+					new BrowserItem
+					{
+						Name = failed.NameFixed,
+						Kind = BrowserItemKind.FailedFile,
+						Icon = IconKind.Alert,
+						IsContainer = false,
+						Target = failed,
+						Meta = "Failed",
+					}
+				);
 			}
 		}
 
@@ -291,15 +314,17 @@ internal static class BrowserFolderBuilder
 		List<BrowserItem> items = new();
 		foreach (AssetCollection col in scene.Collections)
 		{
-			items.Add(new BrowserItem
-			{
-				Name = col.Name,
-				Kind = BrowserItemKind.Collection,
-				Icon = IconKind.Library,
-				IsContainer = true,
-				Target = col,
-				Meta = col.Count.ToString(),
-			});
+			items.Add(
+				new BrowserItem
+				{
+					Name = col.Name,
+					Kind = BrowserItemKind.Collection,
+					Icon = IconKind.Library,
+					IsContainer = true,
+					Target = col,
+					Meta = col.Count.ToString(),
+				}
+			);
 		}
 		return items;
 	}
@@ -309,16 +334,18 @@ internal static class BrowserFolderBuilder
 		List<BrowserItem> items = new(scenes.Count);
 		foreach (SceneDefinition scene in scenes)
 		{
-			items.Add(new BrowserItem
-			{
-				Name = scene.Name,
-				Kind = BrowserItemKind.Scene,
-				Icon = IconKind.Document,
-				IsContainer = true,
-				Target = scene,
-				Meta = scene.Collections.Count.ToString(),
-				SecondaryPath = scene.Path,
-			});
+			items.Add(
+				new BrowserItem
+				{
+					Name = scene.Name,
+					Kind = BrowserItemKind.Scene,
+					Icon = IconKind.Document,
+					IsContainer = true,
+					Target = scene,
+					Meta = scene.Collections.Count.ToString(),
+					SecondaryPath = scene.Path,
+				}
+			);
 		}
 		return items;
 	}

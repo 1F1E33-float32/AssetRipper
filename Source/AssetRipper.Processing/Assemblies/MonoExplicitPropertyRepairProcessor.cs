@@ -15,6 +15,7 @@ namespace AssetRipper.Processing.Assemblies;
 public sealed class MonoExplicitPropertyRepairProcessor : IAssetProcessor
 {
 	public void Process(GameData gameData) => Process(gameData.AssemblyManager);
+
 	private static void Process(IAssemblyManager manager)
 	{
 		manager.ClearStreamCache();
@@ -43,13 +44,21 @@ public sealed class MonoExplicitPropertyRepairProcessor : IAssetProcessor
 					{
 						if (interfaceMethodResolved.IsGetMethod)
 						{
-							PropertyDefinition interfacePropertyResolved = interfaceMethodResolved.DeclaringType!.Properties.First(p => p.Semantics.Contains(interfaceMethodResolved.Semantics));
-							getMethodsToCreate.Add((interfacePropertyResolved, interfaceMethod.DeclaringType!.ToTypeSignature(manager.RuntimeContext), method));
+							PropertyDefinition interfacePropertyResolved = interfaceMethodResolved.DeclaringType!.Properties.First(p =>
+								p.Semantics.Contains(interfaceMethodResolved.Semantics)
+							);
+							getMethodsToCreate.Add(
+								(interfacePropertyResolved, interfaceMethod.DeclaringType!.ToTypeSignature(manager.RuntimeContext), method)
+							);
 						}
 						else if (interfaceMethodResolved.IsSetMethod)
 						{
-							PropertyDefinition interfacePropertyResolved = interfaceMethodResolved.DeclaringType!.Properties.First(p => p.Semantics.Contains(interfaceMethodResolved.Semantics));
-							setMethodsToCreate.Add((interfacePropertyResolved, interfaceMethod.DeclaringType!.ToTypeSignature(manager.RuntimeContext), method));
+							PropertyDefinition interfacePropertyResolved = interfaceMethodResolved.DeclaringType!.Properties.First(p =>
+								p.Semantics.Contains(interfaceMethodResolved.Semantics)
+							);
+							setMethodsToCreate.Add(
+								(interfacePropertyResolved, interfaceMethod.DeclaringType!.ToTypeSignature(manager.RuntimeContext), method)
+							);
 						}
 					}
 				}
@@ -60,7 +69,9 @@ public sealed class MonoExplicitPropertyRepairProcessor : IAssetProcessor
 					{
 						(PropertyDefinition interfaceProperty, TypeSignature interfaceType, MethodDefinition getMethod) = entry;
 						MethodDefinition? setMethod = setMethodsToCreate
-							.FirstOrDefault(e => e.InterfaceProperty == interfaceProperty && SignatureComparer.Default.Equals(e.InterfaceType, interfaceType))
+							.FirstOrDefault(e =>
+								e.InterfaceProperty == interfaceProperty && SignatureComparer.Default.Equals(e.InterfaceType, interfaceType)
+							)
 							.Method;
 
 						string name = $"{interfaceType.FullName}.{interfaceProperty.Name}";
@@ -77,15 +88,25 @@ public sealed class MonoExplicitPropertyRepairProcessor : IAssetProcessor
 					foreach ((PropertyDefinition InterfaceProperty, TypeSignature InterfaceType, MethodDefinition Method) entry in setMethodsToCreate)
 					{
 						(PropertyDefinition interfaceProperty, TypeSignature interfaceType, MethodDefinition setMethod) = entry;
-						if (getMethodsToCreate.Any(e => e.InterfaceProperty == interfaceProperty && SignatureComparer.Default.Equals(e.InterfaceType, interfaceType)) == true)
+						if (
+							getMethodsToCreate.Any(e =>
+								e.InterfaceProperty == interfaceProperty && SignatureComparer.Default.Equals(e.InterfaceType, interfaceType)
+							) == true
+						)
 						{
 							continue;
 						}
 
 						string name = $"{interfaceType.FullName}.{interfaceProperty.Name}";
 						PropertySignature propertySignature = setMethod.IsStatic
-							? PropertySignature.CreateStatic(setMethod.Signature!.ParameterTypes[^1], setMethod.Signature.ParameterTypes.Take(setMethod.Signature.ParameterTypes.Count - 1))
-							: PropertySignature.CreateInstance(setMethod.Signature!.ParameterTypes[^1], setMethod.Signature.ParameterTypes.Take(setMethod.Signature.ParameterTypes.Count - 1));
+							? PropertySignature.CreateStatic(
+								setMethod.Signature!.ParameterTypes[^1],
+								setMethod.Signature.ParameterTypes.Take(setMethod.Signature.ParameterTypes.Count - 1)
+							)
+							: PropertySignature.CreateInstance(
+								setMethod.Signature!.ParameterTypes[^1],
+								setMethod.Signature.ParameterTypes.Take(setMethod.Signature.ParameterTypes.Count - 1)
+							);
 						PropertyDefinition property = new PropertyDefinition(name, interfaceProperty.Attributes, propertySignature);
 						type.Properties.Add(property);
 						property.SetSemanticMethods(null, setMethod);

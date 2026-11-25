@@ -47,10 +47,7 @@ internal sealed class AudioPreviewControl : Grid, IDisposable
 
 		_levelMeterCanvas = new LevelMeterCanvas();
 
-		Grid scrollContent = new()
-		{
-			RowDefinitions = new RowDefinitions("*,Auto"),
-		};
+		Grid scrollContent = new() { RowDefinitions = new RowDefinitions("*,Auto") };
 		Grid.SetRow(_spectrogramCanvas, 0);
 		Grid.SetRow(_levelMeterCanvas, 1);
 		scrollContent.Children.Add(_spectrogramCanvas);
@@ -123,11 +120,7 @@ internal sealed class AudioPreviewControl : Grid, IDisposable
 			Foreground = Palette.Secondary,
 			VerticalAlignment = VerticalAlignment.Center,
 		};
-		StackPanel timeStack = new()
-		{
-			Orientation = Orientation.Horizontal,
-			VerticalAlignment = VerticalAlignment.Center,
-		};
+		StackPanel timeStack = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
 		timeStack.Children.Add(_positionText);
 		timeStack.Children.Add(_durationText);
 		Grid.SetColumn(timeStack, 2);
@@ -171,19 +164,20 @@ internal sealed class AudioPreviewControl : Grid, IDisposable
 
 		// Build Mel spectrogram textures on background thread
 		DecodedAudioResult captured = audio;
-		Task.Run(() => BuildSpectrogramBitmaps(captured)).ContinueWith(t =>
-		{
-			if (t.IsCompletedSuccessfully && ReferenceEquals(_audio, captured))
+		Task.Run(() => BuildSpectrogramBitmaps(captured))
+			.ContinueWith(t =>
 			{
-				Dispatcher.UIThread.Post(() =>
+				if (t.IsCompletedSuccessfully && ReferenceEquals(_audio, captured))
 				{
-					if (ReferenceEquals(_audio, captured))
+					Dispatcher.UIThread.Post(() =>
 					{
-						_spectrogramCanvas.SetData(t.Result, captured.SampleRate, captured.Duration);
-					}
-				});
-			}
-		});
+						if (ReferenceEquals(_audio, captured))
+						{
+							_spectrogramCanvas.SetData(t.Result, captured.SampleRate, captured.Duration);
+						}
+					});
+				}
+			});
 
 		UpdateTransportUi();
 	}
@@ -406,6 +400,7 @@ internal sealed class AudioPreviewControl : Grid, IDisposable
 	#region Mel Spectrogram DSP
 
 	private static double HzToMel(double hz) => 2595.0 * Math.Log10(1.0 + hz / 700.0);
+
 	private static double MelToHz(double mel) => 700.0 * (Math.Pow(10.0, mel / 2595.0) - 1.0);
 
 	private static WriteableBitmap[] BuildSpectrogramBitmaps(DecodedAudioResult audio)
@@ -492,9 +487,7 @@ internal sealed class AudioPreviewControl : Grid, IDisposable
 					float energy = 0f;
 					for (int k = s; k < e && k <= halfFft; k++)
 					{
-						float w = k <= mid
-							? (mid > s ? (float)(k - s) / (mid - s) : 1f)
-							: (e > mid ? (float)(e - k) / (e - mid) : 1f);
+						float w = k <= mid ? (mid > s ? (float)(k - s) / (mid - s) : 1f) : (e > mid ? (float)(e - k) / (e - mid) : 1f);
 						energy += mag[k] * MathF.Max(0.05f, w);
 					}
 					float db = 10f * MathF.Log10(MathF.Max(energy, 1e-12f));
@@ -567,7 +560,8 @@ internal sealed class AudioPreviewControl : Grid, IDisposable
 			float wlenI = MathF.Sin(ang);
 			for (int i = 0; i < n; i += len)
 			{
-				float wr = 1f, wi = 0f;
+				float wr = 1f,
+					wi = 0f;
 				int half = len >> 1;
 				for (int j = 0; j < half; j++)
 				{
@@ -602,12 +596,13 @@ internal sealed class AudioPreviewControl : Grid, IDisposable
 		return (r, g, b);
 	}
 
-	private static string ChannelLabel(int index, int count) => count switch
-	{
-		1 => "M",
-		2 => index == 0 ? "L" : "R",
-		_ => (index + 1).ToString(CultureInfo.InvariantCulture),
-	};
+	private static string ChannelLabel(int index, int count) =>
+		count switch
+		{
+			1 => "M",
+			2 => index == 0 ? "L" : "R",
+			_ => (index + 1).ToString(CultureInfo.InvariantCulture),
+		};
 
 	#endregion
 
@@ -647,11 +642,8 @@ internal sealed class AudioPreviewControl : Grid, IDisposable
 			InvalidateVisual();
 		}
 
-		private Rect GetPlotBounds() => new(
-			LeftMargin,
-			TopMargin,
-			Math.Max(0, Bounds.Width - LeftMargin - RightMargin),
-			Math.Max(0, Bounds.Height - TopMargin - BottomMargin));
+		private Rect GetPlotBounds() =>
+			new(LeftMargin, TopMargin, Math.Max(0, Bounds.Width - LeftMargin - RightMargin), Math.Max(0, Bounds.Height - TopMargin - BottomMargin));
 
 		protected override void OnPointerPressed(PointerPressedEventArgs e)
 		{
@@ -736,7 +728,11 @@ internal sealed class AudioPreviewControl : Grid, IDisposable
 			{
 				float frac = (float)s / Steps;
 				(byte r, byte g, byte b) = MapDbToColor(-frac * RangeDb);
-				context.DrawRectangle(new SolidColorBrush(Color.FromRgb(r, g, b)), null, new Rect(legendX, plot.Top + plot.Height * frac, 5, stepH + 1));
+				context.DrawRectangle(
+					new SolidColorBrush(Color.FromRgb(r, g, b)),
+					null,
+					new Rect(legendX, plot.Top + plot.Height * frac, 5, stepH + 1)
+				);
 			}
 			DrawLabel(context, "dB rel.", new Point(legendX, plot.Top - 15), typeface);
 			int[] dbTicks = [0, 20, 40, 60, 80, 100];
@@ -786,7 +782,12 @@ internal sealed class AudioPreviewControl : Grid, IDisposable
 		{
 			for (int i = 0; i < _channels.Length; i++)
 			{
-				_channels[i] = new ChannelState { Rms = MeterFloorDb, Peak = MeterFloorDb, Held = MeterFloorDb };
+				_channels[i] = new ChannelState
+				{
+					Rms = MeterFloorDb,
+					Peak = MeterFloorDb,
+					Held = MeterFloorDb,
+				};
 			}
 			_lastUpdate = Stopwatch.GetTimestamp();
 			InvalidateVisual();

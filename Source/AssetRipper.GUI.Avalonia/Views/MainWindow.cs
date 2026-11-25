@@ -8,6 +8,7 @@ using AssetRipper.GUI.Avalonia.Controls;
 using AssetRipper.GUI.Avalonia.Services;
 using AssetRipper.GUI.Avalonia.Theme;
 using AssetRipper.GUI.Localizations;
+using AssetRipper.Import.GamePlugins;
 using AssetRipper.IO.Files;
 using AssetRipper.IO.Files.ResourceFiles;
 using AssetRipper.SourceGenerated.Classes.ClassID_43;
@@ -17,13 +18,12 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
-using Avalonia.Layout;
 using Avalonia.Interactivity;
-using Avalonia.VisualTree;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
-using AssetRipper.Import.GamePlugins;
+using Avalonia.VisualTree;
 
 namespace AssetRipper.GUI.Avalonia.Views;
 
@@ -146,19 +146,12 @@ internal sealed class MainWindow : Window
 		AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
 		AddHandler(DragDrop.DropEvent, OnDrop);
 
-		_rootGrid = new Grid
-		{
-			Focusable = true,
-			Background = Palette.Background,
-		};
+		_rootGrid = new Grid { Focusable = true, Background = Palette.Background };
 
 		// ================================================================
 		// 1. WORKSPACE LAYER
 		// ================================================================
-		_workspaceLayer = new Grid
-		{
-			RowDefinitions = new RowDefinitions("40,*"),
-		};
+		_workspaceLayer = new Grid { RowDefinitions = new RowDefinitions("40,*") };
 
 		// Main Titlebar (40px)
 		_homeBtn = new VnlensButton(IconKind.Home, enabled: false, ghost: true);
@@ -240,34 +233,30 @@ internal sealed class MainWindow : Window
 			[
 				_homeBtn,
 				_backBtn,
-				new Border { Width = 1, Height = 16, Margin = new Thickness(4, 0), Background = Palette.Border, VerticalAlignment = VerticalAlignment.Center },
+				new Border
+				{
+					Width = 1,
+					Height = 16,
+					Margin = new Thickness(4, 0),
+					Background = Palette.Border,
+					VerticalAlignment = VerticalAlignment.Center,
+				},
 				openFolderBtn,
 				openFilesBtn,
 			],
 			centerControl: _searchContainer,
-			rightControls:
-			[
-				_exportBtn,
-				_inspectorBtn,
-				_settingsBtn,
-			],
-			out _maxIconHost);
+			rightControls: [_exportBtn, _inspectorBtn, _settingsBtn],
+			out _maxIconHost
+		);
 		Grid.SetRow(mainTitlebar, 0);
 		_workspaceLayer.Children.Add(mainTitlebar);
 
 		// Main Split Content Area (Column Browser + Animated Inspector)
-		Grid bodyGrid = new()
-		{
-			ColumnDefinitions = new ColumnDefinitions("*,Auto"),
-		};
+		Grid bodyGrid = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
 		Grid.SetRow(bodyGrid, 1);
 
 		// Column Strip
-		_columnsPanel = new StackPanel
-		{
-			Orientation = Orientation.Horizontal,
-			VerticalAlignment = VerticalAlignment.Stretch,
-		};
+		_columnsPanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Stretch };
 		_columnsPanel.Children.Add(new Border { Width = 24 });
 
 		_stripScroll = new ScrollViewer
@@ -286,10 +275,7 @@ internal sealed class MainWindow : Window
 		// Welcome drop overlay
 		(_welcomeOverlay, _welcomeCard) = BuildWelcomeOverlay();
 
-		Grid browserHost = new()
-		{
-			ClipToBounds = true,
-		};
+		Grid browserHost = new() { ClipToBounds = true };
 		browserHost.Children.Add(_stripScroll);
 		browserHost.Children.Add(_welcomeOverlay);
 		Grid.SetColumn(browserHost, 0);
@@ -373,7 +359,8 @@ internal sealed class MainWindow : Window
 			leftControls: [closeSettingsBtn, settingsTitle],
 			centerControl: null,
 			rightControls: [],
-			out _settingsMaxIconHost);
+			out _settingsMaxIconHost
+		);
 		Grid.SetRow(settingsTitlebar, 0);
 		_settingsLayer.Children.Add(settingsTitlebar);
 
@@ -388,12 +375,12 @@ internal sealed class MainWindow : Window
 		// ================================================================
 		// 3. FLOATING STATUS DOCK & POPOVERS
 		// ================================================================
-		(_statusTile, _statusIconHost, _statusBadgeDot, _statusPopover, _activityLogView,
-		 _pathBarGlass, _pathSegmentsPanel, _exportPreviewBtn) = BuildStatusDock();
+		(_statusTile, _statusIconHost, _statusBadgeDot, _statusPopover, _activityLogView, _pathBarGlass, _pathSegmentsPanel, _exportPreviewBtn) =
+			BuildStatusDock();
 
 		// Export dropdown menu
-		(_exportMenuOverlay, _exportMenuCard, _menuExportUnity, _menuExportPrimary,
-		 _menuExportSelected, _menuTimestampSubfolder, _menuReset) = BuildExportMenu();
+		(_exportMenuOverlay, _exportMenuCard, _menuExportUnity, _menuExportPrimary, _menuExportSelected, _menuTimestampSubfolder, _menuReset) =
+			BuildExportMenu();
 		_rootGrid.Children.Add(_exportMenuOverlay);
 
 		// Path right-click context menu
@@ -451,7 +438,8 @@ internal sealed class MainWindow : Window
 		IReadOnlyList<Control> leftControls,
 		Control? centerControl,
 		IReadOnlyList<Control> rightControls,
-		out Border maximizeIconHost)
+		out Border maximizeIconHost
+	)
 	{
 		Border bar = new()
 		{
@@ -462,11 +450,7 @@ internal sealed class MainWindow : Window
 			Padding = new Thickness(12, 0, 0, 0),
 		};
 
-		Grid layout = new()
-		{
-			ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto"),
-			VerticalAlignment = VerticalAlignment.Stretch,
-		};
+		Grid layout = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto"), VerticalAlignment = VerticalAlignment.Stretch };
 
 		StackPanel leftStack = new()
 		{
@@ -513,16 +497,15 @@ internal sealed class MainWindow : Window
 		layout.Children.Add(rightStack);
 
 		// Native-style Windows caption controls (46px wide, 40px tall)
-		StackPanel windowControls = new()
-		{
-			Orientation = Orientation.Horizontal,
-			VerticalAlignment = VerticalAlignment.Stretch,
-		};
+		StackPanel windowControls = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Stretch };
 
-		windowControls.Children.Add(CreateCaptionButton(
-			Icons.Glyph(IconKind.WindowMinimize, 12, Palette.Text),
-			isClose: false,
-			onClick: () => WindowState = WindowState.Minimized));
+		windowControls.Children.Add(
+			CreateCaptionButton(
+				Icons.Glyph(IconKind.WindowMinimize, 12, Palette.Text),
+				isClose: false,
+				onClick: () => WindowState = WindowState.Minimized
+			)
+		);
 
 		maximizeIconHost = new Border
 		{
@@ -530,15 +513,9 @@ internal sealed class MainWindow : Window
 			Height = 12,
 			Child = Icons.Glyph(IconKind.WindowMaximize, 12, Palette.Text),
 		};
-		windowControls.Children.Add(CreateCaptionButton(
-			maximizeIconHost,
-			isClose: false,
-			onClick: ToggleMaximize));
+		windowControls.Children.Add(CreateCaptionButton(maximizeIconHost, isClose: false, onClick: ToggleMaximize));
 
-		windowControls.Children.Add(CreateCaptionButton(
-			Icons.Glyph(IconKind.WindowClose, 12, Palette.Text),
-			isClose: true,
-			onClick: Close));
+		windowControls.Children.Add(CreateCaptionButton(Icons.Glyph(IconKind.WindowClose, 12, Palette.Text), isClose: true, onClick: Close));
 
 		Grid.SetColumn(windowControls, 3);
 		layout.Children.Add(windowControls);
@@ -579,16 +556,12 @@ internal sealed class MainWindow : Window
 
 	private void ToggleMaximize()
 	{
-		WindowState = WindowState == WindowState.Maximized
-			? WindowState.Normal
-			: WindowState.Maximized;
+		WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
 	}
 
 	private void UpdateMaximizeIcons()
 	{
-		IconKind kind = WindowState == WindowState.Maximized
-			? IconKind.WindowRestore
-			: IconKind.WindowMaximize;
+		IconKind kind = WindowState == WindowState.Maximized ? IconKind.WindowRestore : IconKind.WindowMaximize;
 		_maxIconHost.Child = Icons.Glyph(kind, 12, Palette.Text);
 		_settingsMaxIconHost.Child = Icons.Glyph(kind, 12, Palette.Text);
 	}
@@ -599,10 +572,7 @@ internal sealed class MainWindow : Window
 
 	private (Grid Overlay, Border Card) BuildWelcomeOverlay()
 	{
-		Grid overlay = new()
-		{
-			Margin = new Thickness(24, 24, 24, 66),
-		};
+		Grid overlay = new() { Margin = new Thickness(24, 24, 24, 66) };
 
 		Border iconBadge = new()
 		{
@@ -658,20 +628,24 @@ internal sealed class MainWindow : Window
 			Spacing = 16,
 			HorizontalAlignment = HorizontalAlignment.Center,
 		};
-		hints.Children.Add(new TextBlock
-		{
-			Text = $"{Shortcut("Shift+O")} folder",
-			FontFamily = Palette.UiFont,
-			FontSize = 11,
-			Foreground = Palette.Tertiary,
-		});
-		hints.Children.Add(new TextBlock
-		{
-			Text = $"{Shortcut("O")} files",
-			FontFamily = Palette.UiFont,
-			FontSize = 11,
-			Foreground = Palette.Tertiary,
-		});
+		hints.Children.Add(
+			new TextBlock
+			{
+				Text = $"{Shortcut("Shift+O")} folder",
+				FontFamily = Palette.UiFont,
+				FontSize = 11,
+				Foreground = Palette.Tertiary,
+			}
+		);
+		hints.Children.Add(
+			new TextBlock
+			{
+				Text = $"{Shortcut("O")} files",
+				FontFamily = Palette.UiFont,
+				FontSize = 11,
+				Foreground = Palette.Tertiary,
+			}
+		);
 
 		StackPanel stack = new()
 		{
@@ -707,11 +681,7 @@ internal sealed class MainWindow : Window
 
 		Grid cardGrid = new();
 		cardGrid.Children.Add(dashedOutline);
-		cardGrid.Children.Add(new Border
-		{
-			Padding = new Thickness(28, 36),
-			Child = stack,
-		});
+		cardGrid.Children.Add(new Border { Padding = new Thickness(28, 36), Child = stack });
 		card.Child = cardGrid;
 
 		overlay.Children.Add(card);
@@ -730,7 +700,8 @@ internal sealed class MainWindow : Window
 		ActivityLogView ActivityLog,
 		Border PathBarGlass,
 		StackPanel PathSegmentsPanel,
-		VnlensButton ExportPreviewBtn) BuildStatusDock()
+		VnlensButton ExportPreviewBtn
+	) BuildStatusDock()
 	{
 		// 1. Status Tile (30x30 glass square, bottom-left)
 		Border iconHost = new()
@@ -795,11 +766,7 @@ internal sealed class MainWindow : Window
 		_rootGrid.Children.Add(statusPopover);
 
 		// 3. Breadcrumb Path Bar (glass pill next to status tile)
-		StackPanel pathSegments = new()
-		{
-			Orientation = Orientation.Horizontal,
-			VerticalAlignment = VerticalAlignment.Center,
-		};
+		StackPanel pathSegments = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
 
 		ScrollViewer pathScroll = new()
 		{
@@ -857,7 +824,8 @@ internal sealed class MainWindow : Window
 		VnlensMenuItem ExportPrimary,
 		VnlensMenuItem ExportSelected,
 		VnlensMenuItem TimestampSubfolder,
-		VnlensMenuItem ResetItem) BuildExportMenu()
+		VnlensMenuItem ResetItem
+	) BuildExportMenu()
 	{
 		VnlensMenuItem exportUnity = new(IconKind.Folder, "Export Unity Project…", enabled: false);
 		exportUnity.Clicked += () =>
@@ -894,17 +862,27 @@ internal sealed class MainWindow : Window
 			ResetLoadedFiles();
 		};
 
-		StackPanel list = new()
-		{
-			Orientation = Orientation.Vertical,
-			Spacing = 2,
-		};
+		StackPanel list = new() { Orientation = Orientation.Vertical, Spacing = 2 };
 		list.Children.Add(exportUnity);
 		list.Children.Add(exportPrimary);
 		list.Children.Add(exportSelected);
-		list.Children.Add(new Border { Height = 1, Margin = new Thickness(6, 3), Background = Palette.Border });
+		list.Children.Add(
+			new Border
+			{
+				Height = 1,
+				Margin = new Thickness(6, 3),
+				Background = Palette.Border,
+			}
+		);
 		list.Children.Add(timestampSubfolder);
-		list.Children.Add(new Border { Height = 1, Margin = new Thickness(6, 3), Background = Palette.Border });
+		list.Children.Add(
+			new Border
+			{
+				Height = 1,
+				Margin = new Thickness(6, 3),
+				Background = Palette.Border,
+			}
+		);
 		list.Children.Add(resetItem);
 
 		Border card = GlassSurface.Create(10);
@@ -950,11 +928,7 @@ internal sealed class MainWindow : Window
 		card.Padding = new Thickness(4);
 		card.Child = copyItem;
 
-		Canvas overlay = new()
-		{
-			Background = Palette.Transparent,
-			IsVisible = false,
-		};
+		Canvas overlay = new() { Background = Palette.Transparent, IsVisible = false };
 		overlay.Children.Add(card);
 		overlay.PointerPressed += (_, e) =>
 		{
@@ -995,14 +969,16 @@ internal sealed class MainWindow : Window
 		buttons.Children.Add(deleteBtn);
 
 		StackPanel stack = new() { Spacing = 8 };
-		stack.Children.Add(new TextBlock
-		{
-			Text = "Directory is not empty",
-			FontFamily = Palette.UiFont,
-			FontSize = 15,
-			FontWeight = FontWeight.SemiBold,
-			Foreground = Palette.Warning,
-		});
+		stack.Children.Add(
+			new TextBlock
+			{
+				Text = "Directory is not empty",
+				FontFamily = Palette.UiFont,
+				FontSize = 15,
+				FontWeight = FontWeight.SemiBold,
+				Foreground = Palette.Warning,
+			}
+		);
 		stack.Children.Add(msg);
 		stack.Children.Add(buttons);
 
@@ -1013,11 +989,7 @@ internal sealed class MainWindow : Window
 		card.VerticalAlignment = VerticalAlignment.Center;
 		card.Child = stack;
 
-		Grid overlay = new()
-		{
-			Background = new SolidColorBrush(Color.FromArgb(0x99, 0x00, 0x00, 0x00)),
-			IsVisible = false,
-		};
+		Grid overlay = new() { Background = new SolidColorBrush(Color.FromArgb(0x99, 0x00, 0x00, 0x00)), IsVisible = false };
 		overlay.Children.Add(card);
 
 		return (overlay, msg);
@@ -1070,11 +1042,7 @@ internal sealed class MainWindow : Window
 		{
 			return;
 		}
-		List<string> paths = items
-			.Select(i => i.TryGetLocalPath())
-			.Where(p => !string.IsNullOrEmpty(p))
-			.Cast<string>()
-			.ToList();
+		List<string> paths = items.Select(i => i.TryGetLocalPath()).Where(p => !string.IsNullOrEmpty(p)).Cast<string>().ToList();
 		if (paths.Count > 0)
 		{
 			_ = LoadPathsAsync(paths);
@@ -1092,16 +1060,10 @@ internal sealed class MainWindow : Window
 
 	private async Task OpenFolderDialogAsync()
 	{
-		IReadOnlyList<IStorageFolder> folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-		{
-			Title = Localization.MenuFileOpenFolder,
-			AllowMultiple = true,
-		});
-		List<string> paths = folders
-			.Select(f => f.TryGetLocalPath())
-			.Where(p => !string.IsNullOrEmpty(p))
-			.Cast<string>()
-			.ToList();
+		IReadOnlyList<IStorageFolder> folders = await StorageProvider.OpenFolderPickerAsync(
+			new FolderPickerOpenOptions { Title = Localization.MenuFileOpenFolder, AllowMultiple = true }
+		);
+		List<string> paths = folders.Select(f => f.TryGetLocalPath()).Where(p => !string.IsNullOrEmpty(p)).Cast<string>().ToList();
 		if (paths.Count > 0)
 		{
 			await LoadPathsAsync(paths);
@@ -1110,16 +1072,10 @@ internal sealed class MainWindow : Window
 
 	private async Task OpenFilesDialogAsync()
 	{
-		IReadOnlyList<IStorageFile> files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-		{
-			Title = Localization.MenuFileOpenFile,
-			AllowMultiple = true,
-		});
-		List<string> paths = files
-			.Select(f => f.TryGetLocalPath())
-			.Where(p => !string.IsNullOrEmpty(p))
-			.Cast<string>()
-			.ToList();
+		IReadOnlyList<IStorageFile> files = await StorageProvider.OpenFilePickerAsync(
+			new FilePickerOpenOptions { Title = Localization.MenuFileOpenFile, AllowMultiple = true }
+		);
+		List<string> paths = files.Select(f => f.TryGetLocalPath()).Where(p => !string.IsNullOrEmpty(p)).Cast<string>().ToList();
 		if (paths.Count > 0)
 		{
 			await LoadPathsAsync(paths);
@@ -1184,11 +1140,13 @@ internal sealed class MainWindow : Window
 		{
 			return;
 		}
-		IReadOnlyList<IStorageFolder> folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-		{
-			Title = primaryContent ? Localization.ExportPrimaryContent : Localization.MenuExportAll,
-			AllowMultiple = false,
-		});
+		IReadOnlyList<IStorageFolder> folders = await StorageProvider.OpenFolderPickerAsync(
+			new FolderPickerOpenOptions
+			{
+				Title = primaryContent ? Localization.ExportPrimaryContent : Localization.MenuExportAll,
+				AllowMultiple = false,
+			}
+		);
 		string? path = folders.FirstOrDefault()?.TryGetLocalPath();
 		if (string.IsNullOrEmpty(path))
 		{
@@ -1204,8 +1162,7 @@ internal sealed class MainWindow : Window
 		_exporting = true;
 		RefreshToolbarAndDock();
 
-		using IDisposable task = ActivityLogService.Instance.BeginTask(
-			primaryContent ? "Exporting primary content…" : "Exporting Unity project…");
+		using IDisposable task = ActivityLogService.Instance.BeginTask(primaryContent ? "Exporting primary content…" : "Exporting Unity project…");
 		try
 		{
 			bool ok = primaryContent
@@ -1241,9 +1198,12 @@ internal sealed class MainWindow : Window
 		string defaultExt = "bin";
 		if (item.Target is IUnityObjectBase asset)
 		{
-			if (AssetContentService.HasImageData(asset)) defaultExt = "png";
-			else if (AssetContentService.HasAudioData(asset)) defaultExt = _inspectorView.CurrentDecodedAudio?.EncodedExtension ?? "wav";
-			else if (AssetContentService.HasModelData(asset)) defaultExt = "glb";
+			if (AssetContentService.HasImageData(asset))
+				defaultExt = "png";
+			else if (AssetContentService.HasAudioData(asset))
+				defaultExt = _inspectorView.CurrentDecodedAudio?.EncodedExtension ?? "wav";
+			else if (AssetContentService.HasModelData(asset))
+				defaultExt = "glb";
 			else if (AssetContentService.HasTextData(asset))
 			{
 				string fn = AssetContentService.GetTextFileName(asset);
@@ -1262,21 +1222,22 @@ internal sealed class MainWindow : Window
 		else if (item.Target is ResourceFile)
 		{
 			defaultExt = Path.GetExtension(baseName).TrimStart('.');
-			if (string.IsNullOrEmpty(defaultExt)) defaultExt = "bin";
+			if (string.IsNullOrEmpty(defaultExt))
+				defaultExt = "bin";
 		}
 		else if (item.Target is FailedFile)
 		{
 			defaultExt = "txt";
 		}
 
-		IStorageFile? file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-		{
-			Title = "Export selected asset",
-			SuggestedFileName = baseName.EndsWith("." + defaultExt, StringComparison.OrdinalIgnoreCase)
-				? baseName
-				: $"{baseName}.{defaultExt}",
-			DefaultExtension = defaultExt,
-		});
+		IStorageFile? file = await StorageProvider.SaveFilePickerAsync(
+			new FilePickerSaveOptions
+			{
+				Title = "Export selected asset",
+				SuggestedFileName = baseName.EndsWith("." + defaultExt, StringComparison.OrdinalIgnoreCase) ? baseName : $"{baseName}.{defaultExt}",
+				DefaultExtension = defaultExt,
+			}
+		);
 		string? outPath = file?.TryGetLocalPath();
 		if (string.IsNullOrEmpty(outPath))
 		{
@@ -1456,7 +1417,8 @@ internal sealed class MainWindow : Window
 
 	private async void OnColumnItemActivated(ColumnView column, int rowIndex, BrowserItem item, bool doubleClicked)
 	{
-		if (_loading || _exporting) return;
+		if (_loading || _exporting)
+			return;
 		item = column.ResolveItem(item);
 		if (item.Kind == BrowserItemKind.MountedEntry && item.Target is ValueTuple<GameArchive, GameArchiveEntry> mounted)
 		{
@@ -1467,21 +1429,47 @@ internal sealed class MainWindow : Window
 			{
 				object target = await Task.Run(() => GameFileLoader.LoadMountedEntry(mounted.Item1, mounted.Item2));
 				BrowserItem original = item;
-				item = new BrowserItem { Name = item.Name, Kind = target is AssetCollection ? BrowserItemKind.Collection : BrowserItemKind.ResourceFile,
-					Icon = item.Icon, IsContainer = target is AssetCollection, Target = target, Meta = item.Meta,
-					CompanionNames = item.CompanionNames };
+				item = new BrowserItem
+				{
+					Name = item.Name,
+					Kind = target is AssetCollection ? BrowserItemKind.Collection : BrowserItemKind.ResourceFile,
+					Icon = item.Icon,
+					IsContainer = target is AssetCollection,
+					Target = target,
+					Meta = item.Meta,
+					CompanionNames = item.CompanionNames,
+				};
 				column.SetLoadedItem(original, item);
 			}
-			catch (Exception ex) { ActivityLogService.Instance.ReportError("Entry load failed.", ex); return; }
-			finally { _loading = false; RefreshToolbarAndDock(); }
+			catch (Exception ex)
+			{
+				ActivityLogService.Instance.ReportError("Entry load failed.", ex);
+				return;
+			}
+			finally
+			{
+				_loading = false;
+				RefreshToolbarAndDock();
+			}
 		}
 		if (item.Kind == BrowserItemKind.MountedArchive)
 		{
 			_loading = true;
 			RefreshToolbarAndDock();
-			try { await Task.Run(() => ((GameArchive)item.Target).Entries.Count); }
-			catch (Exception ex) { ActivityLogService.Instance.ReportError("Archive mount failed.", ex); return; }
-			finally { _loading = false; RefreshToolbarAndDock(); }
+			try
+			{
+				await Task.Run(() => ((GameArchive)item.Target).Entries.Count);
+			}
+			catch (Exception ex)
+			{
+				ActivityLogService.Instance.ReportError("Archive mount failed.", ex);
+				return;
+			}
+			finally
+			{
+				_loading = false;
+				RefreshToolbarAndDock();
+			}
 		}
 		int depth = column.Depth;
 		if (depth >= _columns.Count || !ReferenceEquals(_columns[depth], column) || column.SelectedIndex != rowIndex)
@@ -1784,7 +1772,8 @@ internal sealed class MainWindow : Window
 			contentWidth,
 			_stripScroll.Offset.X,
 			preview,
-			_manualInspectorWidth);
+			_manualInspectorWidth
+		);
 
 		if (animate && !_resizingInspector && _layoutMotion.IsAnimating && target == _layoutMotion.Target)
 		{
@@ -1997,7 +1986,8 @@ internal sealed class MainWindow : Window
 	{
 		bool loaded = GameFileLoader.IsLoaded;
 		bool mounted = GameFileLoader.MountedGame is not null;
-		bool hasExportData = loaded && (!mounted || GameFileLoader.GameBundle.HasAnyAssetCollections() || GameFileLoader.GameBundle.Resources.Count > 0);
+		bool hasExportData =
+			loaded && (!mounted || GameFileLoader.GameBundle.HasAnyAssetCollections() || GameFileLoader.GameBundle.Resources.Count > 0);
 
 		_homeBtn.IsActionEnabled = loaded;
 		_backBtn.IsActionEnabled = _activeColumn > 0 || _columns.Count > 1;
@@ -2038,7 +2028,8 @@ internal sealed class MainWindow : Window
 			"Loaded",
 			isLast: _columns[0].SelectedItem is null,
 			fullPath: "Loaded",
-			onClick: GoHome);
+			onClick: GoHome
+		);
 		_pathSegmentsPanel.Children.Add(rootChip);
 
 		string runningPath = "";
@@ -2059,12 +2050,14 @@ internal sealed class MainWindow : Window
 			(int depth, BrowserItem item, string fullPath) = segments[i];
 			bool isLast = i == segments.Count - 1;
 
-			_pathSegmentsPanel.Children.Add(new Border
-			{
-				Margin = new Thickness(1, 0),
-				VerticalAlignment = VerticalAlignment.Center,
-				Child = Icons.Glyph(IconKind.ChevronRight, 9, Palette.Tertiary),
-			});
+			_pathSegmentsPanel.Children.Add(
+				new Border
+				{
+					Margin = new Thickness(1, 0),
+					VerticalAlignment = VerticalAlignment.Center,
+					Child = Icons.Glyph(IconKind.ChevronRight, 9, Palette.Tertiary),
+				}
+			);
 
 			int capturedDepth = depth;
 			Border chip = CreatePathChip(
@@ -2072,7 +2065,8 @@ internal sealed class MainWindow : Window
 				item.Name,
 				isLast,
 				fullPath,
-				onClick: () => CollapseToPathDepth(capturedDepth));
+				onClick: () => CollapseToPathDepth(capturedDepth)
+			);
 			_pathSegmentsPanel.Children.Add(chip);
 		}
 	}
@@ -2086,14 +2080,16 @@ internal sealed class MainWindow : Window
 			VerticalAlignment = VerticalAlignment.Center,
 		};
 		content.Children.Add(icon);
-		content.Children.Add(new TextBlock
-		{
-			Text = text,
-			FontFamily = Palette.UiFont,
-			FontSize = 10,
-			Foreground = isLast ? Palette.Text : Palette.Secondary,
-			VerticalAlignment = VerticalAlignment.Center,
-		});
+		content.Children.Add(
+			new TextBlock
+			{
+				Text = text,
+				FontFamily = Palette.UiFont,
+				FontSize = 10,
+				Foreground = isLast ? Palette.Text : Palette.Secondary,
+				VerticalAlignment = VerticalAlignment.Center,
+			}
+		);
 
 		Border chip = new()
 		{
@@ -2143,14 +2139,17 @@ internal sealed class MainWindow : Window
 		{
 			return;
 		}
-		Dispatcher.UIThread.Post(() =>
-		{
-			Interlocked.Exchange(ref _statusRefreshPending, 0);
-			if (!_closed)
+		Dispatcher.UIThread.Post(
+			() =>
 			{
-				RefreshStatusDock();
-			}
-		}, DispatcherPriority.Background);
+				Interlocked.Exchange(ref _statusRefreshPending, 0);
+				if (!_closed)
+				{
+					RefreshStatusDock();
+				}
+			},
+			DispatcherPriority.Background
+		);
 	}
 
 	private void RefreshStatusDock()
@@ -2171,11 +2170,10 @@ internal sealed class MainWindow : Window
 		}
 		else
 		{
-			_statusIconHost.Child = failed
-				? Icons.Glyph(IconKind.Alert, 16, Palette.Danger)
-				: hasWarning
-					? Icons.Glyph(IconKind.Alert, 16, Palette.Warning)
-					: Icons.Glyph(IconKind.Check, 16, Palette.Success);
+			_statusIconHost.Child =
+				failed ? Icons.Glyph(IconKind.Alert, 16, Palette.Danger)
+				: hasWarning ? Icons.Glyph(IconKind.Alert, 16, Palette.Warning)
+				: Icons.Glyph(IconKind.Check, 16, Palette.Success);
 			_statusBadgeDot.IsVisible = false;
 		}
 
@@ -2189,15 +2187,14 @@ internal sealed class MainWindow : Window
 
 	#region Keyboard Shortcuts
 
-	private static bool IsEditingControl(object? source) => source is Visual visual
-		&& visual.GetSelfAndVisualAncestors().Any(v => v is TextBox or ComboBox or Slider or SelectableTextBlock);
+	private static bool IsEditingControl(object? source) =>
+		source is Visual visual && visual.GetSelfAndVisualAncestors().Any(v => v is TextBox or ComboBox or Slider or SelectableTextBlock);
 
 	private void OnWorkspaceKeyDown(object? sender, KeyEventArgs e)
 	{
 		KeyModifiers modifiers = e.KeyModifiers;
 		bool primary = modifiers is KeyModifiers.Control or KeyModifiers.Meta;
-		bool primaryShift = modifiers == (KeyModifiers.Control | KeyModifiers.Shift)
-			|| modifiers == (KeyModifiers.Meta | KeyModifiers.Shift);
+		bool primaryShift = modifiers == (KeyModifiers.Control | KeyModifiers.Shift) || modifiers == (KeyModifiers.Meta | KeyModifiers.Shift);
 		bool plain = modifiers == KeyModifiers.None;
 
 		if (_confirmOverlay.IsVisible)
@@ -2333,8 +2330,7 @@ internal sealed class MainWindow : Window
 
 	#endregion
 
-	private static string Shortcut(string key) =>
-		OperatingSystem.IsMacOS() ? $"⌘{key}" : $"Ctrl+{key}";
+	private static string Shortcut(string key) => OperatingSystem.IsMacOS() ? $"⌘{key}" : $"Ctrl+{key}";
 
 	private static void OpenInSystemExplorer(string path)
 	{
@@ -2365,14 +2361,28 @@ internal sealed class MainWindow : Window
 		{
 			switch (ext)
 			{
-				case "png": format = ImageExportFormat.Png; return true;
-				case "bmp": format = ImageExportFormat.Bmp; return true;
+				case "png":
+					format = ImageExportFormat.Png;
+					return true;
+				case "bmp":
+					format = ImageExportFormat.Bmp;
+					return true;
 				case "jpg":
-				case "jpeg": format = ImageExportFormat.Jpeg; return true;
-				case "tga": format = ImageExportFormat.Tga; return true;
-				case "exr": format = ImageExportFormat.Exr; return true;
-				case "hdr": format = ImageExportFormat.Hdr; return true;
-				default: format = default; return false;
+				case "jpeg":
+					format = ImageExportFormat.Jpeg;
+					return true;
+				case "tga":
+					format = ImageExportFormat.Tga;
+					return true;
+				case "exr":
+					format = ImageExportFormat.Exr;
+					return true;
+				case "hdr":
+					format = ImageExportFormat.Hdr;
+					return true;
+				default:
+					format = default;
+					return false;
 			}
 		}
 	}

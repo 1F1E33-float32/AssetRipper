@@ -58,7 +58,8 @@ internal sealed class VnlensButton : Border
 		bool enabled = true,
 		bool ghost = true,
 		double height = 30.0,
-		double iconSize = 16.0)
+		double iconSize = 16.0
+	)
 	{
 		_ghost = ghost;
 		_icon = icon;
@@ -69,9 +70,7 @@ internal sealed class VnlensButton : Border
 		Height = height;
 		MinWidth = ghost ? height : 0;
 		CornerRadius = new CornerRadius(7);
-		Padding = ghost
-			? (label is not null ? new Thickness(7, 0, 10, 0) : new Thickness(7, 0, 7, 0))
-			: new Thickness(12, 0, 12, 0);
+		Padding = ghost ? (label is not null ? new Thickness(7, 0, 10, 0) : new Thickness(7, 0, 7, 0)) : new Thickness(12, 0, 12, 0);
 		VerticalAlignment = VerticalAlignment.Center;
 
 		_content = new StackPanel
@@ -114,13 +113,16 @@ internal sealed class VnlensButton : Border
 			_hovered = false;
 			UpdateVisual();
 		};
-		PointerClick.Bind(this, _ =>
-		{
-			if (_enabled)
+		PointerClick.Bind(
+			this,
+			_ =>
 			{
-				Clicked?.Invoke();
+				if (_enabled)
+				{
+					Clicked?.Invoke();
+				}
 			}
-		});
+		);
 	}
 
 	public void SetLabel(string label)
@@ -161,9 +163,7 @@ internal sealed class VnlensButton : Border
 			}
 		}
 
-		IBrush fg = !_enabled
-			? Palette.Disabled
-			: (_ghost && _active ? Palette.AccentText : Palette.Text);
+		IBrush fg = !_enabled ? Palette.Disabled : (_ghost && _active ? Palette.AccentText : Palette.Text);
 
 		Background = bg;
 		Cursor = _enabled ? new Cursor(StandardCursorType.Hand) : Cursor.Default;
@@ -227,11 +227,7 @@ internal sealed class VnlensMenuItem : Border
 		Padding = new Thickness(8, 0);
 		CornerRadius = new CornerRadius(6);
 
-		_grid = new Grid
-		{
-			ColumnDefinitions = new ColumnDefinitions("15,8,*"),
-			VerticalAlignment = VerticalAlignment.Center,
-		};
+		_grid = new Grid { ColumnDefinitions = new ColumnDefinitions("15,8,*"), VerticalAlignment = VerticalAlignment.Center };
 
 		_iconSlot = new Border
 		{
@@ -265,13 +261,16 @@ internal sealed class VnlensMenuItem : Border
 			_hovered = false;
 			UpdateVisual();
 		};
-		PointerClick.Bind(this, _ =>
-		{
-			if (_enabled)
+		PointerClick.Bind(
+			this,
+			_ =>
 			{
-				Clicked?.Invoke();
+				if (_enabled)
+				{
+					Clicked?.Invoke();
+				}
 			}
-		});
+		);
 	}
 
 	private void UpdateVisual()
@@ -300,22 +299,25 @@ internal static class GlassSurface
 
 	public static void SetTooltip(Control target, string text)
 	{
-		ToolTip.SetTip(target, new Border
-		{
-			Background = Palette.GlassBackground,
-			BorderBrush = Palette.GlassBorder,
-			BorderThickness = new Thickness(1),
-			CornerRadius = new CornerRadius(6),
-			Padding = new Thickness(8, 4),
-			BoxShadow = Palette.GlassShadow,
-			Child = new TextBlock
+		ToolTip.SetTip(
+			target,
+			new Border
 			{
-				Text = text,
-				FontFamily = Palette.UiFont,
-				FontSize = 11,
-				Foreground = Palette.Text,
-			},
-		});
+				Background = Palette.GlassBackground,
+				BorderBrush = Palette.GlassBorder,
+				BorderThickness = new Thickness(1),
+				CornerRadius = new CornerRadius(6),
+				Padding = new Thickness(8, 4),
+				BoxShadow = Palette.GlassShadow,
+				Child = new TextBlock
+				{
+					Text = text,
+					FontFamily = Palette.UiFont,
+					FontSize = 11,
+					Foreground = Palette.Text,
+				},
+			}
+		);
 		ToolTip.SetShowDelay(target, 350);
 	}
 }

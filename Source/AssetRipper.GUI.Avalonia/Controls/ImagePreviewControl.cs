@@ -96,11 +96,7 @@ internal sealed class ImagePreviewControl : Grid
 		framePanel.Children.Add(_frameLabel);
 		framePanel.Children.Add(_nextFrameBtn);
 
-		_frameNavContainer = new Border
-		{
-			IsVisible = false,
-			Child = framePanel,
-		};
+		_frameNavContainer = new Border { IsVisible = false, Child = framePanel };
 		Grid.SetColumn(_frameNavContainer, 0);
 		bar.Children.Add(_frameNavContainer);
 
@@ -135,11 +131,7 @@ internal sealed class ImagePreviewControl : Grid
 		GlassSurface.SetTooltip(zoomInBtn, "Zoom in");
 		zoomInBtn.Clicked += () => _canvas.ChangeZoom(1.25);
 
-		StackPanel zoomStack = new()
-		{
-			Orientation = Orientation.Horizontal,
-			VerticalAlignment = VerticalAlignment.Center,
-		};
+		StackPanel zoomStack = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
 		zoomStack.Children.Add(zoomOutBtn);
 		zoomStack.Children.Add(_zoomActualBtn);
 		zoomStack.Children.Add(zoomInBtn);
@@ -209,7 +201,13 @@ internal sealed class ImagePreviewControl : Grid
 			public long Started;
 		}
 
-		private enum DragKind { None, Pan, HBar, VBar }
+		private enum DragKind
+		{
+			None,
+			Pan,
+			HBar,
+			VBar,
+		}
 
 		private WriteableBitmap? _bitmap;
 		private double? _zoom;
@@ -229,12 +227,15 @@ internal sealed class ImagePreviewControl : Grid
 		{
 			ClipToBounds = true;
 			PointerCaptureLost += (_, _) => _dragKind = DragKind.None;
-			_frames = new FrameLoop(this, () =>
-			{
-				bool animating = SampleMotion();
-				InvalidateVisual();
-				return animating;
-			});
+			_frames = new FrameLoop(
+				this,
+				() =>
+				{
+					bool animating = SampleMotion();
+					InvalidateVisual();
+					return animating;
+				}
+			);
 		}
 
 		public void SetBitmap(WriteableBitmap? bitmap, bool resetCamera)
@@ -287,26 +288,20 @@ internal sealed class ImagePreviewControl : Grid
 		{
 			Size img = ImageDipSize;
 			Size vp = ViewportSize;
-			return new Size(
-				Math.Max(0, img.Width * scale - vp.Width),
-				Math.Max(0, img.Height * scale - vp.Height));
+			return new Size(Math.Max(0, img.Width * scale - vp.Width), Math.Max(0, img.Height * scale - vp.Height));
 		}
 
 		private void ClampPan()
 		{
 			Size max = MaximumPan(CurrentScale());
-			_pan = new Point(
-				Math.Clamp(_pan.X, -max.Width, 0),
-				Math.Clamp(_pan.Y, -max.Height, 0));
+			_pan = new Point(Math.Clamp(_pan.X, -max.Width, 0), Math.Clamp(_pan.Y, -max.Height, 0));
 		}
 
 		private Point OriginAt(double scale, Point pan)
 		{
 			Size img = ImageDipSize;
 			Size vp = ViewportSize;
-			return new Point(
-				Math.Max(0, vp.Width - img.Width * scale) / 2.0 + pan.X,
-				Math.Max(0, vp.Height - img.Height * scale) / 2.0 + pan.Y);
+			return new Point(Math.Max(0, vp.Width - img.Width * scale) / 2.0 + pan.X, Math.Max(0, vp.Height - img.Height * scale) / 2.0 + pan.Y);
 		}
 
 		private (double Scale, Point Pan) ComputeZoomAt(double newScale, Point anchor)
@@ -317,10 +312,8 @@ internal sealed class ImagePreviewControl : Grid
 			Size img = ImageDipSize;
 			Size vp = ViewportSize;
 
-			double panX = anchor.X - (anchor.X - oldOrigin.X) * (clampedScale / oldScale)
-				- Math.Max(0, vp.Width - img.Width * clampedScale) / 2.0;
-			double panY = anchor.Y - (anchor.Y - oldOrigin.Y) * (clampedScale / oldScale)
-				- Math.Max(0, vp.Height - img.Height * clampedScale) / 2.0;
+			double panX = anchor.X - (anchor.X - oldOrigin.X) * (clampedScale / oldScale) - Math.Max(0, vp.Width - img.Width * clampedScale) / 2.0;
+			double panY = anchor.Y - (anchor.Y - oldOrigin.Y) * (clampedScale / oldScale) - Math.Max(0, vp.Height - img.Height * clampedScale) / 2.0;
 
 			Size max = MaximumPan(clampedScale);
 			return (clampedScale, new Point(Math.Clamp(panX, -max.Width, 0), Math.Clamp(panY, -max.Height, 0)));

@@ -22,12 +22,15 @@ internal sealed class VnlensSpinner : Border
 		glyph.RenderTransform = _rotate;
 		Child = glyph;
 
-		_frames = new FrameLoop(this, () =>
-		{
-			double elapsed = Stopwatch.GetElapsedTime(_start).TotalMilliseconds;
-			_rotate.Angle = (elapsed % Palette.SpinnerDuration.TotalMilliseconds) / Palette.SpinnerDuration.TotalMilliseconds * 360.0;
-			return true;
-		});
+		_frames = new FrameLoop(
+			this,
+			() =>
+			{
+				double elapsed = Stopwatch.GetElapsedTime(_start).TotalMilliseconds;
+				_rotate.Angle = (elapsed % Palette.SpinnerDuration.TotalMilliseconds) / Palette.SpinnerDuration.TotalMilliseconds * 360.0;
+				return true;
+			}
+		);
 
 		AttachedToVisualTree += (_, _) =>
 		{

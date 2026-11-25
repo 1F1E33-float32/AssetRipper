@@ -110,13 +110,10 @@ public sealed partial class SmartStream : Stream
 			FileStream fileStream => new RandomAccessStream(fileStream, offset, size),
 
 			// branch case
-			RandomAccessStream parentPartial => new RandomAccessStream(
-				parentPartial.Parent,
-				parentPartial.BaseOffset + offset,
-				size),
+			RandomAccessStream parentPartial => new RandomAccessStream(parentPartial.Parent, parentPartial.BaseOffset + offset, size),
 
 			// incompatible
-			_ => null
+			_ => null,
 		};
 
 		if (partialStream is not null)
@@ -227,13 +224,14 @@ public sealed partial class SmartStream : Stream
 	/// <summary>
 	/// The type of stream backing this <see cref="SmartStream"/>.
 	/// </summary>
-	public SmartStreamType StreamType => Stream switch
-	{
-		null => SmartStreamType.Null,
-		MemoryStream => SmartStreamType.Memory,
-		FileStream or MultiFileStream => SmartStreamType.File,
-		_ => throw new InvalidOperationException(),
-	};
+	public SmartStreamType StreamType =>
+		Stream switch
+		{
+			null => SmartStreamType.Null,
+			MemoryStream => SmartStreamType.Memory,
+			FileStream or MultiFileStream => SmartStreamType.File,
+			_ => throw new InvalidOperationException(),
+		};
 
 	/// <summary>
 	/// Write the contents to a byte array, regardless of the <see cref="Position"/> property.

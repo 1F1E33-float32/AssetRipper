@@ -70,20 +70,18 @@ internal sealed class SettingsView : Grid
 		// Locked notice banner when files are loaded
 		if (locked)
 		{
-			Grid bannerGrid = new()
-			{
-				ColumnDefinitions = new ColumnDefinitions("*,12,Auto"),
-				VerticalAlignment = VerticalAlignment.Center,
-			};
-			bannerGrid.Children.Add(new TextBlock
-			{
-				Text = Localization.SettingsCanOnlyBeChangedBeforeLoadingFiles,
-				FontFamily = Palette.UiFont,
-				FontSize = 12,
-				Foreground = Palette.Warning,
-				TextWrapping = TextWrapping.Wrap,
-				VerticalAlignment = VerticalAlignment.Center,
-			});
+			Grid bannerGrid = new() { ColumnDefinitions = new ColumnDefinitions("*,12,Auto"), VerticalAlignment = VerticalAlignment.Center };
+			bannerGrid.Children.Add(
+				new TextBlock
+				{
+					Text = Localization.SettingsCanOnlyBeChangedBeforeLoadingFiles,
+					FontFamily = Palette.UiFont,
+					FontSize = 12,
+					Foreground = Palette.Warning,
+					TextWrapping = TextWrapping.Wrap,
+					VerticalAlignment = VerticalAlignment.Center,
+				}
+			);
 
 			VnlensButton resetBtn = new(label: Localization.MenuFileReset, active: false, enabled: true, ghost: false, height: 28);
 			resetBtn.Clicked += () =>
@@ -107,49 +105,84 @@ internal sealed class SettingsView : Grid
 			"Skip loading files inside StreamingAssets folders.",
 			cfg.ImportSettings.IgnoreStreamingAssets,
 			!locked,
-			v => { cfg.ImportSettings.IgnoreStreamingAssets = v; Persist(cfg); });
+			v =>
+			{
+				cfg.ImportSettings.IgnoreStreamingAssets = v;
+				Persist(cfg);
+			}
+		);
 
 		AddToggleCard(
 			Localization.RemoveNullableAttributes,
 			"Remove compiler-generated nullable reference attributes from scripts.",
 			cfg.ProcessingSettings.RemoveNullableAttributes,
 			!locked,
-			v => { cfg.ProcessingSettings.RemoveNullableAttributes = v; Persist(cfg); });
+			v =>
+			{
+				cfg.ProcessingSettings.RemoveNullableAttributes = v;
+				Persist(cfg);
+			}
+		);
 
 		AddToggleCard(
 			Localization.PublicizeAssemblies,
 			"Change assembly member visibility to public during processing.",
 			cfg.ProcessingSettings.PublicizeAssemblies,
 			!locked,
-			v => { cfg.ProcessingSettings.PublicizeAssemblies = v; Persist(cfg); });
+			v =>
+			{
+				cfg.ProcessingSettings.PublicizeAssemblies = v;
+				Persist(cfg);
+			}
+		);
 
 		AddToggleCard(
 			Localization.EnableStaticMeshSeparation + (GameFileLoader.Premium ? "" : $" ({Localization.PremiumFeatureNotice})"),
 			"Separate combined static meshes back into individual meshes.",
 			GameFileLoader.Premium && cfg.ProcessingSettings.EnableStaticMeshSeparation,
 			!locked && GameFileLoader.Premium,
-			v => { cfg.ProcessingSettings.EnableStaticMeshSeparation = v; Persist(cfg); });
+			v =>
+			{
+				cfg.ProcessingSettings.EnableStaticMeshSeparation = v;
+				Persist(cfg);
+			}
+		);
 
 		AddTextCard(
 			Localization.DefaultVersion,
 			"Fallback Unity version used when serialized files lack a version string.",
 			cfg.ImportSettings.DefaultVersion.ToString(),
 			!locked,
-			s => { cfg.ImportSettings.DefaultVersion = TryParseUnityVersion(s); Persist(cfg); });
+			s =>
+			{
+				cfg.ImportSettings.DefaultVersion = TryParseUnityVersion(s);
+				Persist(cfg);
+			}
+		);
 
 		AddDropDownCard(
 			Localization.BundledAssetsExportTitle,
 			SettingsCatalog.BundledAssetsExportModes(),
 			cfg.ProcessingSettings.BundledAssetsExportMode,
 			!locked,
-			v => { cfg.ProcessingSettings.BundledAssetsExportMode = v; Persist(cfg); });
+			v =>
+			{
+				cfg.ProcessingSettings.BundledAssetsExportMode = v;
+				Persist(cfg);
+			}
+		);
 
 		AddDropDownCard(
 			Localization.ScriptContentLevelTitle,
 			SettingsCatalog.ScriptContentLevels(),
 			cfg.ImportSettings.ScriptContentLevel,
 			!locked,
-			v => { cfg.ImportSettings.ScriptContentLevel = v; Persist(cfg); });
+			v =>
+			{
+				cfg.ImportSettings.ScriptContentLevel = v;
+				Persist(cfg);
+			}
+		);
 
 		// EXPERIMENTAL SECTION
 		AddSectionHeader(Localization.Experimental.ToUpperInvariant(), topMargin: 16);
@@ -158,21 +191,36 @@ internal sealed class SettingsView : Grid
 			"Attempt to outline nested prefabs during scene/asset processing.",
 			cfg.ProcessingSettings.EnablePrefabOutlining,
 			!locked,
-			v => { cfg.ProcessingSettings.EnablePrefabOutlining = v; Persist(cfg); });
+			v =>
+			{
+				cfg.ProcessingSettings.EnablePrefabOutlining = v;
+				Persist(cfg);
+			}
+		);
 
 		AddToggleCard(
 			Localization.EnableAssetDeduplication + (GameFileLoader.Premium ? "" : $" ({Localization.PremiumFeatureNotice})"),
 			"Deduplicate identical assets across bundles.",
 			GameFileLoader.Premium && cfg.ProcessingSettings.EnableAssetDeduplication,
 			!locked && GameFileLoader.Premium,
-			v => { cfg.ProcessingSettings.EnableAssetDeduplication = v; Persist(cfg); });
+			v =>
+			{
+				cfg.ProcessingSettings.EnableAssetDeduplication = v;
+				Persist(cfg);
+			}
+		);
 
 		AddTextCard(
 			Localization.TargetVersionForVersionChanging,
 			"Target Unity version for experimental version conversion.",
 			cfg.ImportSettings.TargetVersion.ToString(),
 			!locked,
-			s => { cfg.ImportSettings.TargetVersion = TryParseUnityVersion(s); Persist(cfg); });
+			s =>
+			{
+				cfg.ImportSettings.TargetVersion = TryParseUnityVersion(s);
+				Persist(cfg);
+			}
+		);
 
 		// EXPORT SECTION
 		AddSectionHeader(Localization.MenuExport.ToUpperInvariant(), topMargin: 16);
@@ -181,84 +229,144 @@ internal sealed class SettingsView : Grid
 			SettingsCatalog.AudioExportFormats(),
 			cfg.ExportSettings.AudioExportFormat,
 			!locked,
-			v => { cfg.ExportSettings.AudioExportFormat = v; Persist(cfg); });
+			v =>
+			{
+				cfg.ExportSettings.AudioExportFormat = v;
+				Persist(cfg);
+			}
+		);
 
 		AddDropDownCard(
 			Localization.ImageExportTitle,
 			SettingsCatalog.ImageExportFormats(),
 			cfg.ExportSettings.ImageExportFormat,
 			!locked,
-			v => { cfg.ExportSettings.ImageExportFormat = v; Persist(cfg); });
+			v =>
+			{
+				cfg.ExportSettings.ImageExportFormat = v;
+				Persist(cfg);
+			}
+		);
 
 		AddDropDownCard(
 			Localization.LightmapTextureExportTitle,
 			SettingsCatalog.LightmapTextureExportFormats(),
 			cfg.ExportSettings.LightmapTextureExportFormat,
 			!locked,
-			v => { cfg.ExportSettings.LightmapTextureExportFormat = v; Persist(cfg); });
+			v =>
+			{
+				cfg.ExportSettings.LightmapTextureExportFormat = v;
+				Persist(cfg);
+			}
+		);
 
 		AddDropDownCard(
 			Localization.SpriteExportTitle,
 			SettingsCatalog.SpriteExportModes(),
 			cfg.ExportSettings.SpriteExportMode,
 			!locked,
-			v => { cfg.ExportSettings.SpriteExportMode = v; Persist(cfg); });
+			v =>
+			{
+				cfg.ExportSettings.SpriteExportMode = v;
+				Persist(cfg);
+			}
+		);
 
 		AddDropDownCard(
 			Localization.ShaderAssetExportTitle,
 			SettingsCatalog.ShaderExportModes(),
 			cfg.ExportSettings.ShaderExportMode,
 			!locked,
-			v => { cfg.ExportSettings.ShaderExportMode = v; Persist(cfg); });
+			v =>
+			{
+				cfg.ExportSettings.ShaderExportMode = v;
+				Persist(cfg);
+			}
+		);
 
 		AddDropDownCard(
 			Localization.TextAssetExportTitle,
 			SettingsCatalog.TextExportModes(),
 			cfg.ExportSettings.TextExportMode,
 			!locked,
-			v => { cfg.ExportSettings.TextExportMode = v; Persist(cfg); });
+			v =>
+			{
+				cfg.ExportSettings.TextExportMode = v;
+				Persist(cfg);
+			}
+		);
 
 		AddDropDownCard(
 			Localization.ScriptExportTitle,
 			SettingsCatalog.ScriptExportModes(),
 			cfg.ExportSettings.ScriptExportMode,
 			!locked,
-			v => { cfg.ExportSettings.ScriptExportMode = v; Persist(cfg); });
+			v =>
+			{
+				cfg.ExportSettings.ScriptExportMode = v;
+				Persist(cfg);
+			}
+		);
 
 		AddDropDownCard(
 			Localization.ScriptLanguageVersionTitle,
 			SettingsCatalog.ScriptLanguageVersions(),
 			cfg.ExportSettings.ScriptLanguageVersion,
 			!locked,
-			v => { cfg.ExportSettings.ScriptLanguageVersion = v; Persist(cfg); });
+			v =>
+			{
+				cfg.ExportSettings.ScriptLanguageVersion = v;
+				Persist(cfg);
+			}
+		);
 
 		AddToggleCard(
 			Localization.ScriptsUseFullyQualifiedTypeNames,
 			"Emit fully qualified namespace prefixes in decompiled C# scripts.",
 			cfg.ExportSettings.ScriptTypesFullyQualified,
 			!locked,
-			v => { cfg.ExportSettings.ScriptTypesFullyQualified = v; Persist(cfg); });
+			v =>
+			{
+				cfg.ExportSettings.ScriptTypesFullyQualified = v;
+				Persist(cfg);
+			}
+		);
 
 		AddToggleCard(
 			Localization.PreferOriginalTextureExtension,
 			"Keep original texture file extension when exporting compatible formats.",
 			cfg.ExportSettings.PreferOriginalTextureExtension,
 			!locked,
-			v => { cfg.ExportSettings.PreferOriginalTextureExtension = v; Persist(cfg); });
+			v =>
+			{
+				cfg.ExportSettings.PreferOriginalTextureExtension = v;
+				Persist(cfg);
+			}
+		);
 
 		AddToggleCard(
 			Localization.ExportUnreadableAssets,
 			"Export assets even when their serialized data could not be fully read.",
 			cfg.ExportSettings.ExportUnreadableAssets,
 			!locked,
-			v => { cfg.ExportSettings.ExportUnreadableAssets = v; Persist(cfg); });
+			v =>
+			{
+				cfg.ExportSettings.ExportUnreadableAssets = v;
+				Persist(cfg);
+			}
+		);
 
 		AddToggleCard(
 			Localization.SaveSettingsToDisk,
 			"Persist configuration changes to AssetRipper's default settings file.",
 			cfg.ExportSettings.SaveSettingsToDisk,
 			!locked,
-			v => { cfg.ExportSettings.SaveSettingsToDisk = v; Persist(cfg); });
+			v =>
+			{
+				cfg.ExportSettings.SaveSettingsToDisk = v;
+				Persist(cfg);
+			}
+		);
 
 		// LANGUAGE & LICENSES SECTION
 		AddSectionHeader("INTERFACE & LICENSES", topMargin: 16);
@@ -268,15 +376,17 @@ internal sealed class SettingsView : Grid
 
 	private void AddSectionHeader(string title, double topMargin = 0)
 	{
-		_sectionsContainer.Children.Add(new TextBlock
-		{
-			Text = title,
-			Margin = new Thickness(4, topMargin, 4, 0),
-			FontFamily = Palette.UiFont,
-			FontSize = 11,
-			FontWeight = FontWeight.SemiBold,
-			Foreground = Palette.Secondary,
-		});
+		_sectionsContainer.Children.Add(
+			new TextBlock
+			{
+				Text = title,
+				Margin = new Thickness(4, topMargin, 4, 0),
+				FontFamily = Palette.UiFont,
+				FontSize = 11,
+				FontWeight = FontWeight.SemiBold,
+				Foreground = Palette.Secondary,
+			}
+		);
 	}
 
 	private void AddToggleCard(string title, string description, bool initialValue, bool enabled, Action<bool> onChanged)
@@ -290,40 +400,36 @@ internal sealed class SettingsView : Grid
 			VerticalAlignment = VerticalAlignment.Center,
 		};
 
-		VnlensToggleSwitch toggle = new(initialValue)
-		{
-			IsSwitchEnabled = enabled,
-			VerticalAlignment = VerticalAlignment.Center,
-		};
+		VnlensToggleSwitch toggle = new(initialValue) { IsSwitchEnabled = enabled, VerticalAlignment = VerticalAlignment.Center };
 		toggle.Toggled += val =>
 		{
 			stateLabel.Text = val ? "On" : "Off";
 			onChanged(val);
 		};
 
-		Grid row = new()
-		{
-			ColumnDefinitions = new ColumnDefinitions("*,16,Auto,12,Auto"),
-			VerticalAlignment = VerticalAlignment.Center,
-		};
+		Grid row = new() { ColumnDefinitions = new ColumnDefinitions("*,16,Auto,12,Auto"), VerticalAlignment = VerticalAlignment.Center };
 
 		StackPanel textStack = new() { Spacing = 3 };
-		textStack.Children.Add(new TextBlock
-		{
-			Text = title,
-			FontFamily = Palette.UiFont,
-			FontSize = 13,
-			Foreground = enabled ? Palette.Text : Palette.Disabled,
-			TextWrapping = TextWrapping.Wrap,
-		});
-		textStack.Children.Add(new TextBlock
-		{
-			Text = description,
-			FontFamily = Palette.UiFont,
-			FontSize = 12,
-			Foreground = Palette.Secondary,
-			TextWrapping = TextWrapping.Wrap,
-		});
+		textStack.Children.Add(
+			new TextBlock
+			{
+				Text = title,
+				FontFamily = Palette.UiFont,
+				FontSize = 13,
+				Foreground = enabled ? Palette.Text : Palette.Disabled,
+				TextWrapping = TextWrapping.Wrap,
+			}
+		);
+		textStack.Children.Add(
+			new TextBlock
+			{
+				Text = description,
+				FontFamily = Palette.UiFont,
+				FontSize = 12,
+				Foreground = Palette.Secondary,
+				TextWrapping = TextWrapping.Wrap,
+			}
+		);
 		Grid.SetColumn(textStack, 0);
 		Grid.SetColumn(stateLabel, 2);
 		Grid.SetColumn(toggle, 4);
@@ -335,12 +441,8 @@ internal sealed class SettingsView : Grid
 		_sectionsContainer.Children.Add(WrapCard(row));
 	}
 
-	private void AddDropDownCard<T>(
-		string title,
-		IReadOnlyList<SettingChoice<T>> choices,
-		T currentValue,
-		bool enabled,
-		Action<T> onChanged) where T : struct, Enum
+	private void AddDropDownCard<T>(string title, IReadOnlyList<SettingChoice<T>> choices, T currentValue, bool enabled, Action<T> onChanged)
+		where T : struct, Enum
 	{
 		TextBlock descBlock = new()
 		{
@@ -383,20 +485,18 @@ internal sealed class SettingsView : Grid
 			}
 		};
 
-		Grid row = new()
-		{
-			ColumnDefinitions = new ColumnDefinitions("*,16,Auto"),
-			VerticalAlignment = VerticalAlignment.Center,
-		};
+		Grid row = new() { ColumnDefinitions = new ColumnDefinitions("*,16,Auto"), VerticalAlignment = VerticalAlignment.Center };
 
 		StackPanel textStack = new() { Spacing = 3 };
-		textStack.Children.Add(new TextBlock
-		{
-			Text = title,
-			FontFamily = Palette.UiFont,
-			FontSize = 13,
-			Foreground = enabled ? Palette.Text : Palette.Disabled,
-		});
+		textStack.Children.Add(
+			new TextBlock
+			{
+				Text = title,
+				FontFamily = Palette.UiFont,
+				FontSize = 13,
+				Foreground = enabled ? Palette.Text : Palette.Disabled,
+			}
+		);
 		textStack.Children.Add(descBlock);
 
 		Grid.SetColumn(textStack, 0);
@@ -420,28 +520,28 @@ internal sealed class SettingsView : Grid
 		};
 		box.LostFocus += (_, _) => onChanged(box.Text ?? "");
 
-		Grid row = new()
-		{
-			ColumnDefinitions = new ColumnDefinitions("*,16,Auto"),
-			VerticalAlignment = VerticalAlignment.Center,
-		};
+		Grid row = new() { ColumnDefinitions = new ColumnDefinitions("*,16,Auto"), VerticalAlignment = VerticalAlignment.Center };
 
 		StackPanel textStack = new() { Spacing = 3 };
-		textStack.Children.Add(new TextBlock
-		{
-			Text = title,
-			FontFamily = Palette.UiFont,
-			FontSize = 13,
-			Foreground = enabled ? Palette.Text : Palette.Disabled,
-		});
-		textStack.Children.Add(new TextBlock
-		{
-			Text = description,
-			FontFamily = Palette.UiFont,
-			FontSize = 12,
-			Foreground = Palette.Secondary,
-			TextWrapping = TextWrapping.Wrap,
-		});
+		textStack.Children.Add(
+			new TextBlock
+			{
+				Text = title,
+				FontFamily = Palette.UiFont,
+				FontSize = 13,
+				Foreground = enabled ? Palette.Text : Palette.Disabled,
+			}
+		);
+		textStack.Children.Add(
+			new TextBlock
+			{
+				Text = description,
+				FontFamily = Palette.UiFont,
+				FontSize = 12,
+				Foreground = Palette.Secondary,
+				TextWrapping = TextWrapping.Wrap,
+			}
+		);
 
 		Grid.SetColumn(textStack, 0);
 		Grid.SetColumn(box, 2);
@@ -453,8 +553,8 @@ internal sealed class SettingsView : Grid
 
 	private void AddLanguageCard(FullConfiguration cfg)
 	{
-		(string Code, string Name)[] langs = LanguageCodes.LanguageNameDictionary
-			.OrderBy(kv => kv.Value, StringComparer.OrdinalIgnoreCase)
+		(string Code, string Name)[] langs = LanguageCodes
+			.LanguageNameDictionary.OrderBy(kv => kv.Value, StringComparer.OrdinalIgnoreCase)
 			.Select(kv => (kv.Key, kv.Value))
 			.ToArray();
 
@@ -482,26 +582,26 @@ internal sealed class SettingsView : Grid
 			}
 		};
 
-		Grid row = new()
-		{
-			ColumnDefinitions = new ColumnDefinitions("*,16,Auto"),
-			VerticalAlignment = VerticalAlignment.Center,
-		};
+		Grid row = new() { ColumnDefinitions = new ColumnDefinitions("*,16,Auto"), VerticalAlignment = VerticalAlignment.Center };
 		StackPanel textStack = new() { Spacing = 3 };
-		textStack.Children.Add(new TextBlock
-		{
-			Text = Localization.MenuLanguage,
-			FontFamily = Palette.UiFont,
-			FontSize = 13,
-			Foreground = Palette.Text,
-		});
-		textStack.Children.Add(new TextBlock
-		{
-			Text = "Display language for AssetRipper labels and settings.",
-			FontFamily = Palette.UiFont,
-			FontSize = 12,
-			Foreground = Palette.Secondary,
-		});
+		textStack.Children.Add(
+			new TextBlock
+			{
+				Text = Localization.MenuLanguage,
+				FontFamily = Palette.UiFont,
+				FontSize = 13,
+				Foreground = Palette.Text,
+			}
+		);
+		textStack.Children.Add(
+			new TextBlock
+			{
+				Text = "Display language for AssetRipper labels and settings.",
+				FontFamily = Palette.UiFont,
+				FontSize = 12,
+				Foreground = Palette.Secondary,
+			}
+		);
 		Grid.SetColumn(textStack, 0);
 		Grid.SetColumn(combo, 2);
 		row.Children.Add(textStack);
@@ -517,7 +617,9 @@ internal sealed class SettingsView : Grid
 		{
 			ItemsSource = games,
 			SelectedIndex = Math.Max(0, Array.IndexOf(games, cfg.ImportSettings.Game)),
-			MinWidth = 220, FontSize = 12, IsEnabled = enabled,
+			MinWidth = 220,
+			FontSize = 12,
+			IsEnabled = enabled,
 		};
 		picker.SelectionChanged += (_, _) =>
 		{
@@ -527,8 +629,22 @@ internal sealed class SettingsView : Grid
 		};
 		Grid row = new() { ColumnDefinitions = new ColumnDefinitions("*,16,Auto") };
 		StackPanel labels = new() { Spacing = 3 };
-		labels.Children.Add(new TextBlock { Text = "Game", FontSize = 13, Foreground = Palette.Text });
-		labels.Children.Add(new TextBlock { Text = "Choose a game before opening its folder or archives.", FontSize = 12, Foreground = Palette.Secondary });
+		labels.Children.Add(
+			new TextBlock
+			{
+				Text = "Game",
+				FontSize = 13,
+				Foreground = Palette.Text,
+			}
+		);
+		labels.Children.Add(
+			new TextBlock
+			{
+				Text = "Choose a game before opening its folder or archives.",
+				FontSize = 12,
+				Foreground = Palette.Secondary,
+			}
+		);
 		Grid.SetColumn(picker, 2);
 		row.Children.Add(labels);
 		row.Children.Add(picker);
@@ -569,27 +685,21 @@ internal sealed class SettingsView : Grid
 			}
 		};
 
-		Grid header = new()
-		{
-			ColumnDefinitions = new ColumnDefinitions("*,16,Auto"),
-			VerticalAlignment = VerticalAlignment.Center,
-		};
-		header.Children.Add(new TextBlock
-		{
-			Text = Localization.Licenses,
-			FontFamily = Palette.UiFont,
-			FontSize = 13,
-			Foreground = Palette.Text,
-			VerticalAlignment = VerticalAlignment.Center,
-		});
+		Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,16,Auto"), VerticalAlignment = VerticalAlignment.Center };
+		header.Children.Add(
+			new TextBlock
+			{
+				Text = Localization.Licenses,
+				FontFamily = Palette.UiFont,
+				FontSize = 13,
+				Foreground = Palette.Text,
+				VerticalAlignment = VerticalAlignment.Center,
+			}
+		);
 		Grid.SetColumn(picker, 2);
 		header.Children.Add(picker);
 
-		ScrollViewer licenseScroll = new()
-		{
-			MaxHeight = 200,
-			Content = licenseBody,
-		};
+		ScrollViewer licenseScroll = new() { MaxHeight = 200, Content = licenseBody };
 
 		StackPanel stack = new() { Spacing = 8 };
 		stack.Children.Add(header);

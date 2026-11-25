@@ -1,4 +1,4 @@
-﻿﻿namespace AssetRipper.Import.Logging;
+﻿namespace AssetRipper.Import.Logging;
 
 public enum LogCategory
 {

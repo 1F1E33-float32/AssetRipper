@@ -13,6 +13,7 @@ namespace AssetRipper.GUI.Avalonia.Controls;
 internal sealed class CodeHexViewControl : Grid
 {
 	private sealed record TextLineRow(int LineNumber, string Text);
+
 	private sealed record HexRow(string Offset, string Hex, string Ascii);
 
 	private readonly ListBox _list;
@@ -20,12 +21,13 @@ internal sealed class CodeHexViewControl : Grid
 	private string _rawTextForCopy = "";
 
 	public string RawTextForCopy => _rawTextForCopy;
-	public string? SelectedTextForCopy => _list.SelectedItem switch
-	{
-		TextLineRow row => row.Text,
-		HexRow row => $"{row.Offset}  {row.Hex}  {row.Ascii}",
-		_ => null,
-	};
+	public string? SelectedTextForCopy =>
+		_list.SelectedItem switch
+		{
+			TextLineRow row => row.Text,
+			HexRow row => $"{row.Offset}  {row.Hex}  {row.Ascii}",
+			_ => null,
+		};
 
 	public CodeHexViewControl()
 	{
@@ -57,39 +59,45 @@ internal sealed class CodeHexViewControl : Grid
 		}
 
 		double gutter = _gutterWidth;
-		_list.ItemTemplate = new FuncDataTemplate<TextLineRow>((row, _) =>
-		{
-			if (row is null)
+		_list.ItemTemplate = new FuncDataTemplate<TextLineRow>(
+			(row, _) =>
 			{
-				return new Border();
+				if (row is null)
+				{
+					return new Border();
+				}
+				StackPanel panel = new()
+				{
+					Orientation = Orientation.Horizontal,
+					Height = 22,
+					VerticalAlignment = VerticalAlignment.Center,
+				};
+				panel.Children.Add(
+					new TextBlock
+					{
+						Text = row.LineNumber.ToString(CultureInfo.InvariantCulture),
+						Width = gutter,
+						Padding = new Thickness(0, 0, 12, 0),
+						TextAlignment = TextAlignment.Right,
+						FontFamily = Palette.MonoFont,
+						FontSize = 11,
+						Foreground = Palette.Tertiary,
+						VerticalAlignment = VerticalAlignment.Center,
+					}
+				);
+				panel.Children.Add(
+					new TextBlock
+					{
+						Text = row.Text,
+						FontFamily = Palette.MonoFont,
+						FontSize = 11,
+						Foreground = Palette.Text,
+						VerticalAlignment = VerticalAlignment.Center,
+					}
+				);
+				return panel;
 			}
-			StackPanel panel = new()
-			{
-				Orientation = Orientation.Horizontal,
-				Height = 22,
-				VerticalAlignment = VerticalAlignment.Center,
-			};
-			panel.Children.Add(new TextBlock
-			{
-				Text = row.LineNumber.ToString(CultureInfo.InvariantCulture),
-				Width = gutter,
-				Padding = new Thickness(0, 0, 12, 0),
-				TextAlignment = TextAlignment.Right,
-				FontFamily = Palette.MonoFont,
-				FontSize = 11,
-				Foreground = Palette.Tertiary,
-				VerticalAlignment = VerticalAlignment.Center,
-			});
-			panel.Children.Add(new TextBlock
-			{
-				Text = row.Text,
-				FontFamily = Palette.MonoFont,
-				FontSize = 11,
-				Foreground = Palette.Text,
-				VerticalAlignment = VerticalAlignment.Center,
-			});
-			return panel;
-		});
+		);
 
 		_list.ItemsSource = rows;
 	}
@@ -124,53 +132,58 @@ internal sealed class CodeHexViewControl : Grid
 			{
 				hexBuilder.Append(' ');
 			}
-			rows[r] = new HexRow(
-				start.ToString("X8", CultureInfo.InvariantCulture),
-				hexBuilder.ToString(),
-				new string(asciiChars, 0, len));
+			rows[r] = new HexRow(start.ToString("X8", CultureInfo.InvariantCulture), hexBuilder.ToString(), new string(asciiChars, 0, len));
 		}
 
 		_rawTextForCopy = string.Join('\n', rows.Take(500).Select(r => $"{r.Offset}  {r.Hex}  {r.Ascii}"));
 
-		_list.ItemTemplate = new FuncDataTemplate<HexRow>((row, _) =>
-		{
-			if (row is null)
+		_list.ItemTemplate = new FuncDataTemplate<HexRow>(
+			(row, _) =>
 			{
-				return new Border();
+				if (row is null)
+				{
+					return new Border();
+				}
+				StackPanel panel = new()
+				{
+					Orientation = Orientation.Horizontal,
+					Spacing = 16,
+					Height = 22,
+					VerticalAlignment = VerticalAlignment.Center,
+				};
+				panel.Children.Add(
+					new TextBlock
+					{
+						Text = row.Offset,
+						FontFamily = Palette.MonoFont,
+						FontSize = 11,
+						Foreground = Palette.Tertiary,
+						VerticalAlignment = VerticalAlignment.Center,
+					}
+				);
+				panel.Children.Add(
+					new TextBlock
+					{
+						Text = row.Hex,
+						FontFamily = Palette.MonoFont,
+						FontSize = 11,
+						Foreground = Palette.Text,
+						VerticalAlignment = VerticalAlignment.Center,
+					}
+				);
+				panel.Children.Add(
+					new TextBlock
+					{
+						Text = row.Ascii,
+						FontFamily = Palette.MonoFont,
+						FontSize = 11,
+						Foreground = Palette.Secondary,
+						VerticalAlignment = VerticalAlignment.Center,
+					}
+				);
+				return panel;
 			}
-			StackPanel panel = new()
-			{
-				Orientation = Orientation.Horizontal,
-				Spacing = 16,
-				Height = 22,
-				VerticalAlignment = VerticalAlignment.Center,
-			};
-			panel.Children.Add(new TextBlock
-			{
-				Text = row.Offset,
-				FontFamily = Palette.MonoFont,
-				FontSize = 11,
-				Foreground = Palette.Tertiary,
-				VerticalAlignment = VerticalAlignment.Center,
-			});
-			panel.Children.Add(new TextBlock
-			{
-				Text = row.Hex,
-				FontFamily = Palette.MonoFont,
-				FontSize = 11,
-				Foreground = Palette.Text,
-				VerticalAlignment = VerticalAlignment.Center,
-			});
-			panel.Children.Add(new TextBlock
-			{
-				Text = row.Ascii,
-				FontFamily = Palette.MonoFont,
-				FontSize = 11,
-				Foreground = Palette.Secondary,
-				VerticalAlignment = VerticalAlignment.Center,
-			});
-			return panel;
-		});
+		);
 
 		_list.ItemsSource = rows;
 	}

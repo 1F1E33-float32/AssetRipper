@@ -112,21 +112,25 @@ internal static class Palette
 	public static readonly TimeSpan MenuEnterDuration = TimeSpan.FromMilliseconds(140);
 	public static readonly TimeSpan SpinnerDuration = TimeSpan.FromMilliseconds(900);
 
-	public static readonly BoxShadows GlassShadow = new(new BoxShadow
-	{
-		OffsetX = 0,
-		OffsetY = 8,
-		Blur = 24,
-		Spread = 0,
-		Color = Color.FromArgb(0x88, 0x00, 0x00, 0x00),
-	});
+	public static readonly BoxShadows GlassShadow = new(
+		new BoxShadow
+		{
+			OffsetX = 0,
+			OffsetY = 8,
+			Blur = 24,
+			Spread = 0,
+			Color = Color.FromArgb(0x88, 0x00, 0x00, 0x00),
+		}
+	);
 
-	public static readonly BoxShadows KnobShadow = new(new BoxShadow
-	{
-		OffsetX = 0,
-		OffsetY = 1,
-		Blur = 3,
-		Spread = 0,
-		Color = Color.FromArgb(0x66, 0x00, 0x00, 0x00),
-	});
+	public static readonly BoxShadows KnobShadow = new(
+		new BoxShadow
+		{
+			OffsetX = 0,
+			OffsetY = 1,
+			Blur = 3,
+			Spread = 0,
+			Color = Color.FromArgb(0x66, 0x00, 0x00, 0x00),
+		}
+	);
 }

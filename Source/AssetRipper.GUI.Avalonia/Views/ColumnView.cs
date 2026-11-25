@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using AssetRipper.GUI.Avalonia.Browser;
+using AssetRipper.GUI.Avalonia.Controls;
 using AssetRipper.GUI.Avalonia.Theme;
 using Avalonia;
 using Avalonia.Controls;
@@ -8,7 +9,6 @@ using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
-using AssetRipper.GUI.Avalonia.Controls;
 
 namespace AssetRipper.GUI.Avalonia.Views;
 
@@ -52,6 +52,7 @@ internal sealed class ColumnView : Grid
 	public event Action<ColumnView>? SelectionCleared;
 
 	public BrowserItem ResolveItem(BrowserItem item) => _loadedItems.GetValueOrDefault(item, item);
+
 	public void SetLoadedItem(BrowserItem original, BrowserItem loaded) => _loadedItems[original] = loaded;
 
 	public ColumnView(int depth, List<BrowserItem> items, bool animateEnter)
@@ -73,10 +74,7 @@ internal sealed class ColumnView : Grid
 		};
 		Children.Add(rightBorder);
 
-		Grid innerGrid = new()
-		{
-			RowDefinitions = new RowDefinitions("Auto,*"),
-		};
+		Grid innerGrid = new() { RowDefinitions = new RowDefinitions("Auto,*") };
 
 		// Optional compact Unity class filter when column contains multiple asset classes
 		string[] distinctClasses = items
@@ -186,12 +184,15 @@ internal sealed class ColumnView : Grid
 		};
 
 		// 180ms ease-in-out column-enter fade animation
-		_enterFrames = new FrameLoop(this, () =>
-		{
-			double t = Stopwatch.GetElapsedTime(_enterStarted).TotalSeconds / Palette.ColumnEnterDuration.TotalSeconds;
-			Opacity = LayoutMotion.EaseInOut(t);
-			return t < 1.0;
-		});
+		_enterFrames = new FrameLoop(
+			this,
+			() =>
+			{
+				double t = Stopwatch.GetElapsedTime(_enterStarted).TotalSeconds / Palette.ColumnEnterDuration.TotalSeconds;
+				Opacity = LayoutMotion.EaseInOut(t);
+				return t < 1.0;
+			}
+		);
 
 		bool enterPending = animateEnter;
 		Opacity = animateEnter ? 0.0 : 1.0;
@@ -237,9 +238,7 @@ internal sealed class ColumnView : Grid
 
 		Grid row = new()
 		{
-			ColumnDefinitions = item.IsContainer
-				? new ColumnDefinitions("Auto,7,*,6,Auto,5,Auto")
-				: new ColumnDefinitions("Auto,7,*,6,Auto"),
+			ColumnDefinitions = item.IsContainer ? new ColumnDefinitions("Auto,7,*,6,Auto,5,Auto") : new ColumnDefinitions("Auto,7,*,6,Auto"),
 			VerticalAlignment = VerticalAlignment.Center,
 		};
 
@@ -300,7 +299,10 @@ internal sealed class ColumnView : Grid
 
 			if (!isSelected)
 			{
-				pill.Background = hovered ? Palette.RowHover : item.CompanionNames.Count > 0 ? Palette.RowGroupBg : Palette.Transparent;
+				pill.Background =
+					hovered ? Palette.RowHover
+					: item.CompanionNames.Count > 0 ? Palette.RowGroupBg
+					: Palette.Transparent;
 			}
 			else if (_isActiveColumn)
 			{
@@ -325,12 +327,15 @@ internal sealed class ColumnView : Grid
 
 		int clickCount = 0;
 		pill.PointerPressed += (_, e) => clickCount = e.ClickCount;
-		PointerClick.Bind(pill, _ =>
-		{
-			int index = _filteredItems.IndexOf(item);
-			SelectIndex(index, raiseEvent: false);
-			ItemActivated?.Invoke(this, index, ResolveItem(item), clickCount == 2);
-		});
+		PointerClick.Bind(
+			pill,
+			_ =>
+			{
+				int index = _filteredItems.IndexOf(item);
+				SelectIndex(index, raiseEvent: false);
+				ItemActivated?.Invoke(this, index, ResolveItem(item), clickCount == 2);
+			}
+		);
 
 		pill.PointerEntered += (_, _) => UpdateRowStyle(true);
 		pill.PointerExited += (_, _) => UpdateRowStyle(false);
@@ -417,9 +422,7 @@ internal sealed class ColumnView : Grid
 		{
 			return;
 		}
-		int next = _selectedIndex.HasValue
-			? Math.Clamp(_selectedIndex.Value + delta, 0, _filteredItems.Count - 1)
-			: 0;
+		int next = _selectedIndex.HasValue ? Math.Clamp(_selectedIndex.Value + delta, 0, _filteredItems.Count - 1) : 0;
 		SelectIndex(next, raiseEvent: false);
 		if (_listBox.Scroll is { } scroll)
 		{

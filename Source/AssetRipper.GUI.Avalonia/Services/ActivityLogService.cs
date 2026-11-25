@@ -4,9 +4,7 @@ namespace AssetRipper.GUI.Avalonia.Services;
 
 internal sealed record ActivityLogEntry(long Sequence, LogType Type, LogCategory Category, string Message)
 {
-	public string Text => Category == LogCategory.None
-		? $"[{Type}] {Message}"
-		: $"[{Type}] [{Category}] {Message}";
+	public string Text => Category == LogCategory.None ? $"[{Type}] {Message}" : $"[{Type}] [{Category}] {Message}";
 }
 
 internal sealed record ActivityLogSnapshot(
@@ -14,7 +12,8 @@ internal sealed record ActivityLogSnapshot(
 	int LineCount,
 	int ErrorCount,
 	int WarningCount,
-	string? ActiveJobLabel)
+	string? ActiveJobLabel
+)
 {
 	public bool IsBusy => ActiveJobLabel is not null;
 }
@@ -37,12 +36,7 @@ internal sealed class ActivityLogService : ILogger
 	{
 		lock (_sync)
 		{
-			return new(
-				includeEntries ? _lines.ToArray() : [],
-				_lines.Count,
-				_errorCount,
-				_warningCount,
-				_tasks.LastOrDefault()?.Label);
+			return new(includeEntries ? _lines.ToArray() : [], _lines.Count, _errorCount, _warningCount, _tasks.LastOrDefault()?.Label);
 		}
 	}
 
@@ -107,9 +101,7 @@ internal sealed class ActivityLogService : ILogger
 		}
 	}
 
-	public void BlankLine(int numLines)
-	{
-	}
+	public void BlankLine(int numLines) { }
 
 	private sealed class TaskScope(ActivityLogService owner, string label) : IDisposable
 	{

@@ -1,9 +1,9 @@
+using AsmResolver.DotNet;
+using AssetRipper.Il2CppInspector;
+using AssetRipper.Il2CppInspector.Reflection;
 using AssetRipper.Import.Logging;
 using AssetRipper.Import.Structure.Platforms;
 using AssetRipper.IO.Files;
-using AssetRipper.Il2CppInspector;
-using AssetRipper.Il2CppInspector.Reflection;
-using AsmResolver.DotNet;
 
 namespace AssetRipper.Import.Structure.Assembly.Managers;
 

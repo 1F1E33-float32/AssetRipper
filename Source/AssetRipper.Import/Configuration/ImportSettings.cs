@@ -1,11 +1,12 @@
-﻿﻿using AssetRipper.Import.Logging;
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
+using AssetRipper.Import.Logging;
 
 namespace AssetRipper.Import.Configuration;
 
 public sealed record class ImportSettings
 {
 	public string Game { get; set; } = "";
+
 	/// <summary>
 	/// The level of scripts to export
 	/// </summary>
@@ -18,10 +19,7 @@ public sealed record class ImportSettings
 	public bool IgnoreStreamingAssets
 	{
 		get => StreamingAssetsMode == StreamingAssetsMode.Ignore;
-		set
-		{
-			StreamingAssetsMode = value ? StreamingAssetsMode.Ignore : StreamingAssetsMode.Extract;
-		}
+		set { StreamingAssetsMode = value ? StreamingAssetsMode.Ignore : StreamingAssetsMode.Extract; }
 	}
 
 	/// <summary>

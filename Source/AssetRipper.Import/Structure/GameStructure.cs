@@ -82,7 +82,8 @@ public sealed class GameStructure : IDisposable
 			filePaths,
 			assetFactory,
 			FileSystem,
-			new GameInitializer(PlatformStructure, MixedStructure, FileSystem, defaultVersion, targetVersion));
+			new GameInitializer(PlatformStructure, MixedStructure, FileSystem, defaultVersion, targetVersion)
+		);
 	}
 
 	[MemberNotNull(nameof(AssemblyManager))]

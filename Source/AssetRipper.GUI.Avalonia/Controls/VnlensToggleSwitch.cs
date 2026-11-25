@@ -50,11 +50,7 @@ internal sealed class VnlensToggleSwitch : Border
 		CornerRadius = new CornerRadius(12);
 		Cursor = new Cursor(StandardCursorType.Hand);
 
-		Canvas track = new()
-		{
-			Width = 44,
-			Height = 24,
-		};
+		Canvas track = new() { Width = 44, Height = 24 };
 
 		_knob = new Border
 		{
@@ -73,14 +69,17 @@ internal sealed class VnlensToggleSwitch : Border
 
 		ApplyVisual();
 
-		PointerClick.Bind(this, _ =>
-		{
-			if (_isEnabled)
+		PointerClick.Bind(
+			this,
+			_ =>
 			{
-				SetChecked(!_isChecked, animate: true);
-				Toggled?.Invoke(_isChecked);
+				if (_isEnabled)
+				{
+					SetChecked(!_isChecked, animate: true);
+					Toggled?.Invoke(_isChecked);
+				}
 			}
-		});
+		);
 	}
 
 	public void SetChecked(bool value, bool animate)
