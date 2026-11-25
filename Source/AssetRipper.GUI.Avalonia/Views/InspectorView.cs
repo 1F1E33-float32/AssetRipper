@@ -10,6 +10,7 @@ using AssetRipper.SourceGenerated.Classes.ClassID_43;
 using AssetRipper.SourceGenerated.Classes.ClassID_83;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input.Platform;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -27,10 +28,7 @@ internal enum InspectorMode
 	Dependencies,
 }
 
-/// <summary>
-/// Right-hand inspector panel matching vnlens-gui/src/workspace/view.rs::inspector &amp; inspector_header.
-/// Directly invokes AssetContentService (C# backend) without any HTTP API relay.
-/// </summary>
+/// <summary>Right-hand inspector panel backed by <see cref="AssetContentService"/>.</summary>
 internal sealed class InspectorView : Grid, IDisposable
 {
 	private readonly Border _headerIconSlot;
@@ -57,12 +55,21 @@ internal sealed class InspectorView : Grid, IDisposable
 
 	public event Action<object>? ReferenceClicked;
 
+	public async Task CopySelectionAsync()
+	{
+		if (ReferenceEquals(_contentHost.Child, _codeHexView)
+			&& _codeHexView.SelectedTextForCopy is { } text
+			&& TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+		{
+			await clipboard.SetTextAsync(text);
+		}
+	}
+
 	public InspectorView()
 	{
 		Background = Palette.Panel;
 		RowDefinitions = new RowDefinitions("38,Auto,*");
 
-		// 38px Header (matching view.rs lines 236-278)
 		Border headerBorder = new()
 		{
 			Height = Palette.InspectorHeaderHeight,
@@ -444,7 +451,7 @@ internal sealed class InspectorView : Grid, IDisposable
 			}
 			catch (Exception ex)
 			{
-				ActivityLogService.Instance.ReportError($"Preview failed: {ex.Message}");
+				ActivityLogService.Instance.ReportError("Preview failed.", ex);
 				Dispatcher.UIThread.Post(() =>
 				{
 					if (!token.IsCancellationRequested)
@@ -518,7 +525,6 @@ internal sealed class InspectorView : Grid, IDisposable
 
 	private Control BuildPropertyTable(List<InfoRow> rows)
 	{
-		// Table styling matching vnlens-gui/src/workspace/script_view.rs alternating rows (#242426 / #28282B)
 		StackPanel stack = new()
 		{
 			Orientation = Orientation.Vertical,

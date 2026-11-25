@@ -6,11 +6,20 @@ using AssetRipper.Import.Logging;
 using AssetRipper.Import.Structure.Assembly.Managers;
 using AssetRipper.IO.Files;
 using AssetRipper.Processing;
+using AssetRipper.Import.GamePlugins;
+using AssetRipper.Import.AssetCreation;
+using AssetRipper.Assets.Collections;
+using AssetRipper.IO.Files.SerializedFiles;
+using AssetRipper.IO.Files.ResourceFiles;
 
 namespace AssetRipper.GUI.Avalonia;
 
 public static class GameFileLoader
 {
+	public static IReadOnlyList<IGameImportPlugin> Plugins => GameImportPlugins.Installed;
+	public static GameImportSession? MountedGame { get; private set; }
+	private static readonly Dictionary<(GameArchive, int), object> LoadedEntries = new();
+	private static bool _pluginAssembliesLoaded;
 	private static GameData? GameData { get; set; }
 
 	[MemberNotNullWhen(true, nameof(GameData))]
@@ -35,8 +44,14 @@ public static class GameFileLoader
 
 	public static void Reset()
 	{
+		MountedGame?.Dispose();
+		MountedGame = null;
+		LoadedEntries.Clear();
+		_pluginAssembliesLoaded = false;
 		if (GameData is not null)
 		{
+			GameData.GameBundle.Dispose();
+			GameData.AssemblyManager.Dispose();
 			GameData = null;
 			GC.Collect();
 			Logger.Info(LogCategory.General, "Data was reset.");
@@ -47,7 +62,46 @@ public static class GameFileLoader
 	{
 		Reset();
 		Settings.LogConfigurationValues();
+		if (!string.IsNullOrEmpty(Settings.ImportSettings.Game))
+		{
+			IGameImportPlugin plugin = Plugins.SingleOrDefault(p => p.Id == Settings.ImportSettings.Game)
+				?? throw new NotSupportedException($"Unknown game import plugin: {Settings.ImportSettings.Game}");
+			MountedGame = plugin.Mount(paths);
+			GameData = new(new GameBundle(), MountedGame.Version, new BaseManager(_ => { }), null);
+			return;
+		}
 		GameData = ExportHandler.LoadAndProcess(paths, LocalFileSystem.Instance);
+	}
+
+	public static object LoadMountedEntry(GameArchive archive, GameArchiveEntry entry)
+	{
+		if (LoadedEntries.TryGetValue((archive, entry.Index), out object? existing)) return existing;
+		if (MountedGame is null || GameData is null) throw new InvalidOperationException("No game is mounted.");
+		if (entry.IsSerialized && !_pluginAssembliesLoaded && !Settings.DisableScriptImport)
+		{
+			IAssemblyManager manager = MountedGame.CreateAssemblyManager();
+			GameData.AssemblyManager.Dispose();
+			GameData = GameData with { AssemblyManager = manager };
+			_pluginAssembliesLoaded = true;
+		}
+		FileBase file = archive.ReadEntry(entry);
+		object result;
+		if (file is SerializedFile serialized)
+		{
+			foreach (GameArchiveEntry resource in archive.GetResources(entry)) LoadMountedEntry(archive, resource);
+			SerializedAssetCollection collection = GameData.GameBundle.AddCollectionFromSerializedFile(serialized, new GameAssetFactory(AssemblyManager), GameData.ProjectVersion);
+			collection.FilePath = serialized.FilePath;
+			collection.InitializeDependencyList();
+			result = collection;
+		}
+		else if (file is ResourceFile resource)
+		{
+			GameData.GameBundle.AddResource(resource);
+			result = resource;
+		}
+		else throw new NotSupportedException($"Unsupported mounted entry: {entry.Name}");
+		LoadedEntries.Add((archive, entry.Index), result);
+		return result;
 	}
 
 	public static async Task<bool> ExportUnityProjectAsync(string path, Func<string, Task<bool>> confirmDeleteAsync)

@@ -5,7 +5,6 @@ namespace AssetRipper.GUI.Avalonia.Theme;
 
 internal static class Palette
 {
-	// Exact colors from vnlens-gui/src/workspace.rs & browser_view.rs
 	public static readonly Color BackgroundColor = Color.Parse("#1C1C1E");
 	public static readonly Color PanelColor = Color.Parse("#242426");
 	public static readonly Color PanelAltColor = Color.Parse("#28282B");
@@ -97,9 +96,9 @@ internal static class Palette
 	public static readonly FontFamily UiFont = new("Segoe UI, Inter, -apple-system, BlinkMacSystemFont, sans-serif");
 	public static readonly FontFamily MonoFont = new("Cascadia Mono, Consolas, JetBrains Mono, monospace");
 
-	// Layout & animation constants (matching vnlens-gui)
+	// Layout and animation constants
 	public const double TitlebarHeight = 40.0;
-	public const double ColumnWidth = 220.0;
+	public const double ColumnWidth = 330.0;
 	public const double ColumnMinWidth = 180.0;
 	public const double ColumnMaxWidth = 900.0;
 	public const double InspectorMinWidth = 180.0;

@@ -7,10 +7,7 @@ using Avalonia.Media;
 
 namespace AssetRipper.GUI.Avalonia.Controls;
 
-/// <summary>
-/// Borderless ghost toolbar buttons, solid accent/control buttons, glass surfaces,
-/// and menu items matching vnlens-gui/src/workspace/view.rs &amp; browser_view.rs.
-/// </summary>
+/// <summary>Borderless ghost toolbar buttons, solid accent/control buttons, glass surfaces, and menu items.</summary>
 internal sealed class VnlensButton : Border
 {
 	private readonly bool _ghost;
@@ -18,7 +15,8 @@ internal sealed class VnlensButton : Border
 	private readonly IconKind? _icon;
 	private readonly double _iconSize;
 	private readonly TextBlock? _labelText;
-	private Control? _iconControl;
+	private IBrush? _iconBrush;
+	private readonly Border _iconHost = new();
 	private bool _active;
 	private bool _enabled = true;
 	private bool _hovered;
@@ -95,6 +93,14 @@ internal sealed class VnlensButton : Border
 			};
 		}
 
+		if (_icon.HasValue)
+		{
+			_content.Children.Add(_iconHost);
+		}
+		if (_labelText is not null)
+		{
+			_content.Children.Add(_labelText);
+		}
 		Child = _content;
 		UpdateVisual();
 
@@ -108,17 +114,13 @@ internal sealed class VnlensButton : Border
 			_hovered = false;
 			UpdateVisual();
 		};
-		PointerPressed += (_, e) =>
+		PointerClick.Bind(this, _ =>
 		{
-			if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+			if (_enabled)
 			{
-				e.Handled = true;
-				if (_enabled)
-				{
-					Clicked?.Invoke();
-				}
+				Clicked?.Invoke();
 			}
-		};
+		});
 	}
 
 	public void SetLabel(string label)
@@ -166,22 +168,22 @@ internal sealed class VnlensButton : Border
 		Background = bg;
 		Cursor = _enabled ? new Cursor(StandardCursorType.Hand) : Cursor.Default;
 
-		_content.Children.Clear();
-		if (_icon.HasValue)
+		if (_icon.HasValue && !ReferenceEquals(_iconBrush, fg))
 		{
-			_iconControl = Icons.Glyph(_icon.Value, _iconSize, fg);
-			_content.Children.Add(_iconControl);
+			_iconBrush = fg;
+			_iconHost.Child = Icons.Glyph(_icon.Value, _iconSize, fg);
 		}
 		if (_labelText is not null)
 		{
 			_labelText.Foreground = fg;
-			_content.Children.Add(_labelText);
 		}
 	}
 }
 
 internal sealed class VnlensMenuItem : Border
 {
+	public void SetLabel(string label) => _label.Text = label;
+
 	private readonly Grid _grid;
 	private readonly TextBlock _label;
 	private readonly Border _iconSlot;
@@ -263,17 +265,13 @@ internal sealed class VnlensMenuItem : Border
 			_hovered = false;
 			UpdateVisual();
 		};
-		PointerPressed += (_, e) =>
+		PointerClick.Bind(this, _ =>
 		{
-			if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+			if (_enabled)
 			{
-				e.Handled = true;
-				if (_enabled)
-				{
-					Clicked?.Invoke();
-				}
+				Clicked?.Invoke();
 			}
-		};
+		});
 	}
 
 	private void UpdateVisual()

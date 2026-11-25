@@ -8,25 +8,25 @@ using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
-using Avalonia.Threading;
+using AssetRipper.GUI.Avalonia.Controls;
 
 namespace AssetRipper.GUI.Avalonia.Views;
 
 /// <summary>
-/// Single Finder-style Miller column matching vnlens-gui/src/workspace/browser_view.rs::column.
-/// Supports 180ms opacity enter animation, resizable right-edge handle (double-click to reset to 220px),
-/// virtualized 26px rows, active/inactive selection styling, and optional class filter for collections.
+/// Finder-style Miller column with fade-in animation, resizable edge handle,
+/// virtualized rows, and optional class filter for collections.
 /// </summary>
 internal sealed class ColumnView : Grid
 {
 	private readonly List<BrowserItem> _allItems;
+	private readonly Dictionary<BrowserItem, BrowserItem> _loadedItems = new();
 	private List<BrowserItem> _filteredItems;
 	private readonly ListBox _listBox;
 	private readonly Border _filterBar;
 	private readonly ComboBox _classFilterCombo;
 	private readonly TextBlock _emptyLabel;
 	private readonly Border _resizeHandle;
-	private readonly DispatcherTimer _enterTimer;
+	private readonly FrameLoop _enterFrames;
 	private long _enterStarted;
 
 	private int _depth;
@@ -41,7 +41,7 @@ internal sealed class ColumnView : Grid
 	public double ColumnWidth { get; private set; } = Palette.ColumnWidth;
 	public BrowserItem? SelectedItem =>
 		_selectedIndex.HasValue && _selectedIndex.Value >= 0 && _selectedIndex.Value < _filteredItems.Count
-			? _filteredItems[_selectedIndex.Value]
+			? ResolveItem(_filteredItems[_selectedIndex.Value])
 			: null;
 	public int? SelectedIndex => _selectedIndex;
 	public int ItemCount => _filteredItems.Count;
@@ -49,6 +49,10 @@ internal sealed class ColumnView : Grid
 	public event Action<ColumnView, int, BrowserItem, bool>? ItemActivated;
 	public event Action<ColumnView>? ColumnClicked;
 	public event Action<ColumnView, double>? WidthChangedByUser;
+	public event Action<ColumnView>? SelectionCleared;
+
+	public BrowserItem ResolveItem(BrowserItem item) => _loadedItems.GetValueOrDefault(item, item);
+	public void SetLoadedItem(BrowserItem original, BrowserItem loaded) => _loadedItems[original] = loaded;
 
 	public ColumnView(int depth, List<BrowserItem> items, bool animateEnter)
 	{
@@ -117,19 +121,14 @@ internal sealed class ColumnView : Grid
 			Padding = new Thickness(0, 4, 0, 50),
 			ItemsPanel = new FuncTemplate<Panel?>(() => new VirtualizingStackPanel()),
 			ItemTemplate = new FuncDataTemplate<BrowserItem>(BuildRowVisual),
+			AutoScrollToSelectedItem = false,
 			ItemsSource = _filteredItems,
 		};
 		ScrollViewer.SetHorizontalScrollBarVisibility(_listBox, ScrollBarVisibility.Disabled);
 		ScrollViewer.SetVerticalScrollBarVisibility(_listBox, ScrollBarVisibility.Auto);
+		ScrollViewer.SetIsScrollChainingEnabled(_listBox, false);
 
 		_listBox.SelectionChanged += OnListSelectionChanged;
-		_listBox.DoubleTapped += (_, _) =>
-		{
-			if (SelectedItem is { } item && _selectedIndex.HasValue)
-			{
-				ItemActivated?.Invoke(this, _selectedIndex.Value, item, true);
-			}
-		};
 
 		Grid.SetRow(_listBox, 1);
 		innerGrid.Children.Add(_listBox);
@@ -151,7 +150,7 @@ internal sealed class ColumnView : Grid
 
 		Children.Add(innerGrid);
 
-		// 5px right-edge column resize handle (matching browser_view.rs lines 456-481)
+		// Right-edge column resize handle
 		_resizeHandle = new Border
 		{
 			Width = 5,
@@ -171,6 +170,11 @@ internal sealed class ColumnView : Grid
 		_resizeHandle.PointerPressed += OnResizePressed;
 		_resizeHandle.PointerMoved += OnResizeMoved;
 		_resizeHandle.PointerReleased += OnResizeReleased;
+		_resizeHandle.PointerCaptureLost += (_, _) =>
+		{
+			_resizing = false;
+			_resizeHandle.Background = Palette.Transparent;
+		};
 		Children.Add(_resizeHandle);
 
 		PointerPressed += (_, e) =>
@@ -182,30 +186,24 @@ internal sealed class ColumnView : Grid
 		};
 
 		// 180ms ease-in-out column-enter fade animation
-		_enterTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
-		_enterTimer.Tick += (_, _) =>
+		_enterFrames = new FrameLoop(this, () =>
 		{
 			double t = Stopwatch.GetElapsedTime(_enterStarted).TotalSeconds / Palette.ColumnEnterDuration.TotalSeconds;
-			if (t >= 1.0)
+			Opacity = LayoutMotion.EaseInOut(t);
+			return t < 1.0;
+		});
+
+		bool enterPending = animateEnter;
+		Opacity = animateEnter ? 0.0 : 1.0;
+		AttachedToVisualTree += (_, _) =>
+		{
+			if (enterPending)
 			{
-				Opacity = 1.0;
-				_enterTimer.Stop();
-			}
-			else
-			{
-				Opacity = LayoutMotion.EaseInOut(t);
+				enterPending = false;
+				_enterStarted = Stopwatch.GetTimestamp();
+				_enterFrames.Start();
 			}
 		};
-
-		if (animateEnter)
-		{
-			Opacity = 0.0;
-			AttachedToVisualTree += (_, _) =>
-			{
-				_enterStarted = Stopwatch.GetTimestamp();
-				_enterTimer.Start();
-			};
-		}
 	}
 
 	private Control BuildRowVisual(BrowserItem? item, INameScope _)
@@ -215,7 +213,6 @@ internal sealed class ColumnView : Grid
 			return new Border { Height = Palette.RowHeight };
 		}
 
-		// Outer wrapper matches h(26), px(6)
 		Border outer = new()
 		{
 			Height = Palette.RowHeight,
@@ -231,6 +228,12 @@ internal sealed class ColumnView : Grid
 			Cursor = new Cursor(StandardCursorType.Hand),
 			Tag = item,
 		};
+		if (item.CompanionNames.Count > 0)
+		{
+			pill.BorderThickness = new Thickness(1);
+			pill.BorderBrush = Palette.GlassBorder;
+			GlassSurface.SetTooltip(pill, string.Join('\n', new[] { item.Name }.Concat(item.CompanionNames)));
+		}
 
 		Grid row = new()
 		{
@@ -292,12 +295,12 @@ internal sealed class ColumnView : Grid
 
 		void UpdateRowStyle(bool hovered)
 		{
-			bool isSelected = ReferenceEquals(SelectedItem, item);
+			bool isSelected = ReferenceEquals(SelectedItem, ResolveItem(item));
 			bool highlighted = isSelected && _isActiveColumn;
 
 			if (!isSelected)
 			{
-				pill.Background = hovered ? Palette.RowHover : Palette.Transparent;
+				pill.Background = hovered ? Palette.RowHover : item.CompanionNames.Count > 0 ? Palette.RowGroupBg : Palette.Transparent;
 			}
 			else if (_isActiveColumn)
 			{
@@ -320,6 +323,15 @@ internal sealed class ColumnView : Grid
 		outer.Tag = (Action<bool>)UpdateRowStyle;
 		UpdateRowStyle(false);
 
+		int clickCount = 0;
+		pill.PointerPressed += (_, e) => clickCount = e.ClickCount;
+		PointerClick.Bind(pill, _ =>
+		{
+			int index = _filteredItems.IndexOf(item);
+			SelectIndex(index, raiseEvent: false);
+			ItemActivated?.Invoke(this, index, ResolveItem(item), clickCount == 2);
+		});
+
 		pill.PointerEntered += (_, _) => UpdateRowStyle(true);
 		pill.PointerExited += (_, _) => UpdateRowStyle(false);
 
@@ -337,7 +349,7 @@ internal sealed class ColumnView : Grid
 		{
 			_selectedIndex = idx;
 			RefreshVisibleRowVisuals();
-			ItemActivated?.Invoke(this, idx, _filteredItems[idx], false);
+			ItemActivated?.Invoke(this, idx, ResolveItem(_filteredItems[idx]), false);
 		}
 	}
 
@@ -353,7 +365,7 @@ internal sealed class ColumnView : Grid
 	public void SelectIndex(int? index, bool raiseEvent = true)
 	{
 		_selectedIndex = index;
-		_suppressSelectionEvent = !raiseEvent;
+		_suppressSelectionEvent = true;
 		try
 		{
 			_listBox.SelectedIndex = index ?? -1;
@@ -367,6 +379,10 @@ internal sealed class ColumnView : Grid
 			_suppressSelectionEvent = false;
 		}
 		RefreshVisibleRowVisuals();
+		if (raiseEvent && SelectedItem is { } selected && index.HasValue)
+		{
+			ItemActivated?.Invoke(this, index.Value, selected, false);
+		}
 	}
 
 	public bool SelectTarget(object target, bool raiseEvent = true)
@@ -403,8 +419,14 @@ internal sealed class ColumnView : Grid
 		}
 		int next = _selectedIndex.HasValue
 			? Math.Clamp(_selectedIndex.Value + delta, 0, _filteredItems.Count - 1)
-			: (delta > 0 ? 0 : _filteredItems.Count - 1);
-		SelectIndex(next, raiseEvent: true);
+			: 0;
+		SelectIndex(next, raiseEvent: false);
+		if (_listBox.Scroll is { } scroll)
+		{
+			double center = (next + 0.5) * Palette.RowHeight + _listBox.Padding.Top;
+			scroll.Offset = new Vector(0, Math.Max(0, center - scroll.Viewport.Height / 2));
+		}
+		ItemActivated?.Invoke(this, next, ResolveItem(_filteredItems[next]), false);
 	}
 
 	private void ApplyClassFilter()
@@ -424,6 +446,8 @@ internal sealed class ColumnView : Grid
 		_listBox.SelectedIndex = -1;
 		_listBox.ItemsSource = _filteredItems;
 		_suppressSelectionEvent = false;
+		_emptyLabel.IsVisible = _depth > 0 && _filteredItems.Count == 0;
+		SelectionCleared?.Invoke(this);
 	}
 
 	private void RefreshVisibleRowVisuals()
@@ -432,7 +456,7 @@ internal sealed class ColumnView : Grid
 		{
 			if (container is ListBoxItem lbi && lbi.Presenter?.Child is Border outer && outer.Tag is Action<bool> updater)
 			{
-				updater(false);
+				updater(outer.IsPointerOver);
 			}
 		}
 	}

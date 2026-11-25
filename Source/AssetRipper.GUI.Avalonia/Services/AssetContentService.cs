@@ -57,32 +57,14 @@ namespace AssetRipper.GUI.Avalonia.Services;
 
 internal sealed record InfoRow(string Key, string Value, object? ReferenceTarget = null);
 
-internal sealed record DecodedImageResult(
-	WriteableBitmap[] Layers,
-	int Width,
-	int Height,
-	DirectBitmap DirectBitmap);
+internal sealed record DecodedImageResult(WriteableBitmap[] Layers, int Width, int Height, DirectBitmap DirectBitmap);
 
-internal sealed record DecodedAudioResult(
-	float[] Samples,
-	int SampleRate,
-	int Channels,
-	byte[] EncodedData,
-	string EncodedExtension,
-	byte[]? WavData)
+internal sealed record DecodedAudioResult(float[] Samples, int SampleRate, int Channels, byte[] EncodedData, string EncodedExtension, byte[]? WavData)
 {
-	public double Duration => Channels > 0 && SampleRate > 0
-		? (double)Samples.Length / Channels / SampleRate
-		: 0.0;
+	public double Duration => Channels > 0 && SampleRate > 0 ? (double)Samples.Length / Channels / SampleRate : 0.0;
 }
 
-internal sealed record ModelGeometry(
-	Vector3[] Positions,
-	Vector3[] Normals,
-	Vector4[]? Colors,
-	int[] TriangleIndices,
-	Vector3 Center,
-	float Radius);
+internal sealed record ModelGeometry(Vector3[] Positions, Vector3[] Normals, Vector4[]? Colors, int[] TriangleIndices, Vector3 Center, float Radius);
 
 internal sealed record SearchHit(IUnityObjectBase Asset, AssetCollection Collection);
 
@@ -90,30 +72,29 @@ internal static class AssetContentService
 {
 	#region Capabilities
 
-	public static bool HasImageData(IUnityObjectBase asset) => asset switch
-	{
-		IImageTexture texture => texture.CheckAssetIntegrity(),
-		SpriteInformationObject spriteInfo => spriteInfo.Texture.CheckAssetIntegrity(),
-		ISprite sprite => SpriteConverter.Supported(sprite),
-		ITerrainData terrainData => terrainData.Heightmap.Heights.Count > 0,
-		_ => false,
-	};
+	public static bool HasImageData(IUnityObjectBase asset) =>
+		asset switch
+		{
+			IImageTexture texture => texture.CheckAssetIntegrity(),
+			SpriteInformationObject spriteInfo => spriteInfo.Texture.CheckAssetIntegrity(),
+			ISprite sprite => SpriteConverter.Supported(sprite),
+			ITerrainData terrainData => terrainData.Heightmap.Heights.Count > 0,
+			_ => false,
+		};
 
 	public static bool HasAudioData(IUnityObjectBase asset) => asset is IAudioClip;
 
 	public static bool HasModelData(IUnityObjectBase asset) => asset is IMesh;
 
-	public static bool HasTextData(IUnityObjectBase asset) =>
-		asset is IShader or IMonoScript or ITextAsset { Script_C49.IsEmpty: false };
+	public static bool HasTextData(IUnityObjectBase asset) => asset is IShader or IMonoScript or ITextAsset { Script_C49.IsEmpty: false };
 
-	public static bool HasFontData(IUnityObjectBase asset) =>
-		asset is IFont font && font.FontData is { Length: >= 4 };
+	public static bool HasFontData(IUnityObjectBase asset) => asset is IFont font && font.FontData is { Length: >= 4 };
 
-	public static bool HasVideoData(IUnityObjectBase asset) =>
-		asset is IVideoClip clip && clip.CheckIntegrity();
+	public static bool HasVideoData(IUnityObjectBase asset) => asset is IVideoClip clip && clip.CheckIntegrity();
 
 	public static bool HasBinaryData(IUnityObjectBase asset) =>
 		asset is RawDataObject { RawData.Length: > 0 }
+		|| (asset.SourceAsset ?? asset) is TypeTreeObject { OriginalData.Length: > 0 }
 		|| HasFontData(asset)
 		|| HasVideoData(asset);
 
@@ -126,7 +107,9 @@ internal static class AssetContentService
 		DirectBitmap bitmap = asset switch
 		{
 			IImageTexture texture => TextureConverter.TryConvertToBitmap(texture, out DirectBitmap b) ? b : DirectBitmap.Empty,
-			SpriteInformationObject spriteInfo => TextureConverter.TryConvertToBitmap(spriteInfo.Texture, out DirectBitmap b) ? b : DirectBitmap.Empty,
+			SpriteInformationObject spriteInfo => TextureConverter.TryConvertToBitmap(spriteInfo.Texture, out DirectBitmap b)
+				? b
+				: DirectBitmap.Empty,
 			ISprite sprite => SpriteConverter.TryConvertToBitmap(sprite, out DirectBitmap b) ? b : DirectBitmap.Empty,
 			ITerrainData terrainData => TerrainHeatmap.GetBitmap(terrainData),
 			_ => DirectBitmap.Empty,
@@ -160,7 +143,8 @@ internal static class AssetContentService
 					new PixelSize(bitmap.Width, bitmap.Height),
 					new global::Avalonia.Vector(96, 96),
 					PixelFormat.Bgra8888,
-					AlphaFormat.Unpremul);
+					AlphaFormat.Unpremul
+				);
 				using ILockedFramebuffer fb = wb.Lock();
 				ReadOnlySpan<byte> src = bitmap.Bits;
 				int rowBytes = bitmap.Width * 4;
@@ -183,14 +167,15 @@ internal static class AssetContentService
 		return WriteableBitmap.Decode(ms);
 	}
 
-	public static byte[] GetRawImageData(IUnityObjectBase asset) => asset switch
-	{
-		ITexture2D texture => texture.GetImageData(),
-		SpriteInformationObject spriteInfo => spriteInfo.Texture.GetImageData(),
-		ISprite sprite => sprite.TryGetTexture()?.GetImageData() ?? [],
-		ITerrainData terrainData => MemoryMarshal.AsBytes(terrainData.Heightmap.Heights.GetSpan()).ToArray(),
-		_ => [],
-	};
+	public static byte[] GetRawImageData(IUnityObjectBase asset) =>
+		asset switch
+		{
+			ITexture2D texture => texture.GetImageData(),
+			SpriteInformationObject spriteInfo => spriteInfo.Texture.GetImageData(),
+			ISprite sprite => sprite.TryGetTexture()?.GetImageData() ?? [],
+			ITerrainData terrainData => MemoryMarshal.AsBytes(terrainData.Heightmap.Heights.GetSpan()).ToArray(),
+			_ => [],
+		};
 
 	#endregion
 
@@ -395,8 +380,12 @@ internal static class AssetContentService
 						int d = (int)idxBuf[firstIndex + q];
 						if (a < vertexCount && b < vertexCount && c < vertexCount && d < vertexCount)
 						{
-							indices.Add(a); indices.Add(b); indices.Add(c);
-							indices.Add(a); indices.Add(c); indices.Add(d);
+							indices.Add(a);
+							indices.Add(b);
+							indices.Add(c);
+							indices.Add(a);
+							indices.Add(c);
+							indices.Add(d);
 						}
 					}
 					break;
@@ -460,21 +449,23 @@ internal static class AssetContentService
 
 	#region Text / YAML / JSON / Binary
 
-	public static string GetTextContent(IUnityObjectBase asset) => asset switch
-	{
-		IShader shader => shader.Has_Script() && !shader.Script.IsEmpty ? shader.Script : DumpShaderDataAsText(shader),
-		IMonoScript monoScript => DecompileMonoScript(monoScript),
-		ITextAsset textAsset => textAsset.Script_C49,
-		_ => "",
-	};
+	public static string GetTextContent(IUnityObjectBase asset) =>
+		asset switch
+		{
+			IShader shader => shader.Has_Script() && !shader.Script.IsEmpty ? shader.Script : DumpShaderDataAsText(shader),
+			IMonoScript monoScript => DecompileMonoScript(monoScript),
+			ITextAsset textAsset => textAsset.Script_C49,
+			_ => "",
+		};
 
-	public static string GetTextFileName(IUnityObjectBase asset) => asset switch
-	{
-		IShader => $"{FileSystem.FixInvalidFileNameCharacters(asset.GetBestName())}.shader",
-		IMonoScript monoScript => $"{FileSystem.FixInvalidFileNameCharacters(monoScript.ClassName_R)}.cs",
-		ITextAsset textAsset => $"{FileSystem.FixInvalidFileNameCharacters(asset.GetBestName())}.{textAsset.GetBestExtension() ?? "txt"}",
-		_ => $"{FileSystem.FixInvalidFileNameCharacters(asset.GetBestName())}.txt",
-	};
+	public static string GetTextFileName(IUnityObjectBase asset) =>
+		asset switch
+		{
+			IShader => $"{FileSystem.FixInvalidFileNameCharacters(asset.GetBestName())}.shader",
+			IMonoScript monoScript => $"{FileSystem.FixInvalidFileNameCharacters(monoScript.ClassName_R)}.cs",
+			ITextAsset textAsset => $"{FileSystem.FixInvalidFileNameCharacters(asset.GetBestName())}.{textAsset.GetBestExtension() ?? "txt"}",
+			_ => $"{FileSystem.FixInvalidFileNameCharacters(asset.GetBestName())}.txt",
+		};
 
 	private static string DumpShaderDataAsText(IShader shader)
 	{
@@ -507,6 +498,7 @@ internal static class AssetContentService
 
 	public static string GetYamlContent(IUnityObjectBase asset)
 	{
+		asset = asset.SourceAsset ?? asset;
 		try
 		{
 			using StringWriter stringWriter = new(CultureInfo.InvariantCulture) { NewLine = "\n" };
@@ -525,6 +517,7 @@ internal static class AssetContentService
 
 	public static string GetJsonContent(IUnityObjectBase asset)
 	{
+		asset = asset.SourceAsset ?? asset;
 		try
 		{
 			StringWriter stringWriter = new(CultureInfo.InvariantCulture) { NewLine = "\n" };
@@ -539,6 +532,10 @@ internal static class AssetContentService
 
 	public static (byte[] Data, string Extension) GetBinaryData(IUnityObjectBase asset)
 	{
+		if ((asset.SourceAsset ?? asset) is TypeTreeObject { OriginalData: { } originalData })
+		{
+			return (originalData, "dat");
+		}
 		if (asset is RawDataObject rawData)
 		{
 			return (rawData.RawData, "dat");
@@ -689,7 +686,7 @@ internal static class AssetContentService
 	public static List<InfoRow> GetDependencyRows(IUnityObjectBase asset)
 	{
 		List<InfoRow> rows = new();
-		foreach ((string path, PPtr pptr) in asset.FetchDependencies())
+		foreach ((string path, PPtr pptr) in (asset.SourceAsset ?? asset).FetchDependencies())
 		{
 			if (pptr.IsNull)
 			{
@@ -721,8 +718,10 @@ internal static class AssetContentService
 		{
 			foreach (IUnityObjectBase asset in collection)
 			{
-				if (asset.GetBestName().Contains(query, StringComparison.OrdinalIgnoreCase)
-					|| asset.ClassName.Contains(query, StringComparison.OrdinalIgnoreCase))
+				if (
+					asset.GetBestName().Contains(query, StringComparison.OrdinalIgnoreCase)
+					|| asset.ClassName.Contains(query, StringComparison.OrdinalIgnoreCase)
+				)
 				{
 					results.Add(new SearchHit(asset, collection));
 					if (results.Count >= maxResults)

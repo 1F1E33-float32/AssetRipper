@@ -16,17 +16,14 @@ public static class AvaloniaApplicationLauncher
 		// Allow passing file/folder paths on command line to open directly
 		App.StartupPaths = args.Where(a => File.Exists(a) || Directory.Exists(a)).ToArray();
 
-		AppBuilder.Configure<App>()
-			.UsePlatformDetect()
-			.LogToTrace()
-			.StartWithClassicDesktopLifetime(args);
+		AppBuilder.Configure<App>().UsePlatformDetect().LogToTrace().StartWithClassicDesktopLifetime(args);
 	}
 
 	private static void SetupLogging()
 	{
 		try
 		{
-			string logPath = Path.Join(LocalFileSystem.ExecutingDirectory, $"AssetRipper_{DateTime.Now:yyyyMMdd_HHmmss}.log");
+			string logPath = Path.Join(LocalFileSystem.ExecutingDirectory, "log", $"AssetRipper_{DateTime.Now:yyyyMMdd_HHmmss}.log");
 			RotateLogs(logPath);
 			Logger.Add(new FileLogger(logPath));
 		}
@@ -48,10 +45,7 @@ public static class AvaloniaApplicationLauncher
 			return;
 		}
 
-		FileInfo[] logFiles = new DirectoryInfo(directory)
-			.GetFiles("AssetRipper_*.log")
-			.OrderBy(f => f.Name, StringComparer.Ordinal)
-			.ToArray();
+		FileInfo[] logFiles = new DirectoryInfo(directory).GetFiles("AssetRipper_*.log").OrderBy(f => f.Name, StringComparer.Ordinal).ToArray();
 
 		for (int i = 0; i <= logFiles.Length - MaxLogFiles; i++)
 		{

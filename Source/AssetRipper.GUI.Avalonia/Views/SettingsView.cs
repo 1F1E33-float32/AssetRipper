@@ -12,11 +12,7 @@ using Avalonia.Media;
 
 namespace AssetRipper.GUI.Avalonia.Views;
 
-/// <summary>
-/// Full-window Settings panel styled 1:1 after vnlens-gui/src/workspace/view.rs::settings:
-/// centered max-w 640px cards (#242426, 1px #37373B, rounded 10px), uppercase 11px section headers,
-/// animated 44x24 VnlensToggleSwitch controls, and direct C# binding to GameFileLoader.Settings.
-/// </summary>
+/// <summary>Full-window Settings panel bound directly to <see cref="GameFileLoader.Settings"/>.</summary>
 internal sealed class SettingsView : Grid
 {
 	private readonly StackPanel _sectionsContainer;
@@ -105,6 +101,7 @@ internal sealed class SettingsView : Grid
 
 		// IMPORT SECTION
 		AddSectionHeader(Localization.MenuImport.ToUpperInvariant());
+		AddGameCard(cfg, !locked);
 		AddToggleCard(
 			Localization.SkipStreamingAssets,
 			"Skip loading files inside StreamingAssets folders.",
@@ -510,6 +507,31 @@ internal sealed class SettingsView : Grid
 		row.Children.Add(textStack);
 		row.Children.Add(combo);
 
+		_sectionsContainer.Children.Add(WrapCard(row));
+	}
+
+	private void AddGameCard(FullConfiguration cfg, bool enabled)
+	{
+		string[] games = ["Standard Unity", .. GameFileLoader.Plugins.Select(p => p.Id)];
+		ComboBox picker = new()
+		{
+			ItemsSource = games,
+			SelectedIndex = Math.Max(0, Array.IndexOf(games, cfg.ImportSettings.Game)),
+			MinWidth = 220, FontSize = 12, IsEnabled = enabled,
+		};
+		picker.SelectionChanged += (_, _) =>
+		{
+			cfg.ImportSettings.Game = picker.SelectedIndex <= 0 ? "" : games[picker.SelectedIndex];
+			Persist(cfg);
+			Rebuild();
+		};
+		Grid row = new() { ColumnDefinitions = new ColumnDefinitions("*,16,Auto") };
+		StackPanel labels = new() { Spacing = 3 };
+		labels.Children.Add(new TextBlock { Text = "Game", FontSize = 13, Foreground = Palette.Text });
+		labels.Children.Add(new TextBlock { Text = "Choose a game before opening its folder or archives.", FontSize = 12, Foreground = Palette.Secondary });
+		Grid.SetColumn(picker, 2);
+		row.Children.Add(labels);
+		row.Children.Add(picker);
 		_sectionsContainer.Children.Add(WrapCard(row));
 	}
 

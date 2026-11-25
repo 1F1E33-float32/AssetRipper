@@ -13,10 +13,7 @@ using Avalonia.Threading;
 
 namespace AssetRipper.GUI.Avalonia.Controls;
 
-/// <summary>
-/// Mel spectrogram, real-time RMS/Peak dBFS level meter, and native audio transport,
-/// faithfully ported from vnlens-gui/src/workspace/audio_view.rs &amp; level_meter.rs.
-/// </summary>
+/// <summary>Mel spectrogram, real-time RMS/Peak dBFS level meter, and native audio transport.</summary>
 internal sealed class AudioPreviewControl : Grid, IDisposable
 {
 	private const float RangeDb = 100f;
@@ -68,7 +65,7 @@ internal sealed class AudioPreviewControl : Grid, IDisposable
 		Grid.SetRow(scrollViewer, 0);
 		Children.Add(scrollViewer);
 
-		// Bottom 46px transport bar (matching audio_view.rs lines 286-351)
+		// Bottom transport bar
 		Grid transport = new()
 		{
 			Height = 46,
@@ -245,7 +242,7 @@ internal sealed class AudioPreviewControl : Grid, IDisposable
 		}
 		catch (Exception ex)
 		{
-			ActivityLogService.Instance.ReportError($"Audio playback: {ex.Message}");
+			ActivityLogService.Instance.ReportError("Audio playback failed.", ex);
 			_playing = false;
 			UpdateTransportUi();
 		}
@@ -267,7 +264,7 @@ internal sealed class AudioPreviewControl : Grid, IDisposable
 			}
 			catch (Exception ex)
 			{
-				ActivityLogService.Instance.ReportError($"Audio seek: {ex.Message}");
+				ActivityLogService.Instance.ReportError("Audio seek failed.", ex);
 			}
 		}
 		_spectrogramCanvas.SetPosition(_position);
@@ -406,7 +403,7 @@ internal sealed class AudioPreviewControl : Grid, IDisposable
 		}
 	}
 
-	#region Mel Spectrogram DSP (Exact 6-stop palette from vnlens-gui/src/workspace/audio_view.rs)
+	#region Mel Spectrogram DSP
 
 	private static double HzToMel(double hz) => 2595.0 * Math.Log10(1.0 + hz / 700.0);
 	private static double MelToHz(double mel) => 700.0 * (Math.Pow(10.0, mel / 2595.0) - 1.0);
@@ -592,7 +589,6 @@ internal sealed class AudioPreviewControl : Grid, IDisposable
 
 	private static (byte R, byte G, byte B) MapDbToColor(float db)
 	{
-		// Exact 6 stops from vnlens-gui/src/workspace/audio_view.rs
 		ReadOnlySpan<float> sr = [0f, 16f, 119f, 235f, 255f, 255f];
 		ReadOnlySpan<float> sg = [0f, 30f, 54f, 112f, 202f, 255f];
 		ReadOnlySpan<float> sb = [0f, 49f, 24f, 22f, 65f, 210f];

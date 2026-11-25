@@ -9,10 +9,7 @@ using Avalonia.Media;
 
 namespace AssetRipper.GUI.Avalonia.Controls;
 
-/// <summary>
-/// Virtualized line-numbered text viewer and 12-byte-per-row hex/ASCII viewer
-/// matching vnlens-gui/src/workspace/view.rs (22px row height, Cascadia Mono 11px).
-/// </summary>
+/// <summary>Virtualized line-numbered text viewer and 12-byte-per-row hex/ASCII viewer.</summary>
 internal sealed class CodeHexViewControl : Grid
 {
 	private sealed record TextLineRow(int LineNumber, string Text);
@@ -23,6 +20,12 @@ internal sealed class CodeHexViewControl : Grid
 	private string _rawTextForCopy = "";
 
 	public string RawTextForCopy => _rawTextForCopy;
+	public string? SelectedTextForCopy => _list.SelectedItem switch
+	{
+		TextLineRow row => row.Text,
+		HexRow row => $"{row.Offset}  {row.Hex}  {row.Ascii}",
+		_ => null,
+	};
 
 	public CodeHexViewControl()
 	{

@@ -3,17 +3,14 @@ using AssetRipper.GUI.Avalonia.Theme;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
-using Avalonia.Threading;
 
 namespace AssetRipper.GUI.Avalonia.Controls;
 
-/// <summary>
-/// 900ms continuous rotating spinner matching vnlens-gui/src/workspace/view.rs::spinner.
-/// </summary>
+/// <summary>900ms continuous rotating spinner.</summary>
 internal sealed class VnlensSpinner : Border
 {
 	private readonly RotateTransform _rotate = new(0);
-	private readonly DispatcherTimer _timer;
+	private readonly FrameLoop _frames;
 	private long _start;
 
 	public VnlensSpinner(double size, IBrush brush)
@@ -25,25 +22,23 @@ internal sealed class VnlensSpinner : Border
 		glyph.RenderTransform = _rotate;
 		Child = glyph;
 
-		_timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
-		_timer.Tick += (_, _) =>
+		_frames = new FrameLoop(this, () =>
 		{
 			double elapsed = Stopwatch.GetElapsedTime(_start).TotalMilliseconds;
 			_rotate.Angle = (elapsed % Palette.SpinnerDuration.TotalMilliseconds) / Palette.SpinnerDuration.TotalMilliseconds * 360.0;
-		};
+			return true;
+		});
 
 		AttachedToVisualTree += (_, _) =>
 		{
 			_start = Stopwatch.GetTimestamp();
-			_timer.Start();
+			_frames.Start();
 		};
-		DetachedFromVisualTree += (_, _) => _timer.Stop();
+		DetachedFromVisualTree += (_, _) => _frames.Stop();
 	}
 }
 
-/// <summary>
-/// Circular progress ring matching vnlens-gui/src/workspace/status_view.rs::progress_ring.
-/// </summary>
+/// <summary>Circular progress ring.</summary>
 internal sealed class ProgressRingControl : Control
 {
 	private double _progress;

@@ -8,14 +8,12 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using Avalonia.Threading;
 
 namespace AssetRipper.GUI.Avalonia.Controls;
 
 /// <summary>
-/// Zoomable, pannable image inspector with anchored checkerboard transparency grid,
-/// 180ms ease-in-out zoom animation, custom scrollbars, and multi-layer frame controls,
-/// ported directly from vnlens-gui/src/workspace/image_view.rs.
+/// Zoomable, pannable image inspector with checkerboard transparency grid, animated zoom,
+/// custom scrollbars, and multi-layer frame controls.
 /// </summary>
 internal sealed class ImagePreviewControl : Grid
 {
@@ -59,7 +57,7 @@ internal sealed class ImagePreviewControl : Grid
 		Grid.SetRow(canvasHost, 0);
 		Children.Add(canvasHost);
 
-		// Bottom 40px control bar (matching image_view.rs lines 386-487)
+		// Bottom control bar
 		Grid bar = new()
 		{
 			Height = 40,
@@ -106,7 +104,7 @@ internal sealed class ImagePreviewControl : Grid
 		Grid.SetColumn(_frameNavContainer, 0);
 		bar.Children.Add(_frameNavContainer);
 
-		// Zoom pill (matching image_view.rs lines 432-486)
+		// Zoom pill
 		VnlensButton zoomOutBtn = new(IconKind.ZoomOut, ghost: true, height: 26, iconSize: 15);
 		GlassSurface.SetTooltip(zoomOutBtn, "Zoom out");
 		zoomOutBtn.Clicked += () => _canvas.ChangeZoom(1.0 / 1.25);
@@ -217,7 +215,7 @@ internal sealed class ImagePreviewControl : Grid
 		private double? _zoom;
 		private Point _pan;
 		private ZoomMotion? _motion;
-		private readonly DispatcherTimer _animTimer;
+		private readonly FrameLoop _frames;
 
 		private DragKind _dragKind;
 		private Point _dragStart;
@@ -230,15 +228,13 @@ internal sealed class ImagePreviewControl : Grid
 		public ImageCanvas()
 		{
 			ClipToBounds = true;
-			_animTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
-			_animTimer.Tick += (_, _) =>
+			PointerCaptureLost += (_, _) => _dragKind = DragKind.None;
+			_frames = new FrameLoop(this, () =>
 			{
-				if (!SampleMotion())
-				{
-					_animTimer.Stop();
-				}
+				bool animating = SampleMotion();
 				InvalidateVisual();
-			};
+				return animating;
+			});
 		}
 
 		public void SetBitmap(WriteableBitmap? bitmap, bool resetCamera)
@@ -249,7 +245,7 @@ internal sealed class ImagePreviewControl : Grid
 				_zoom = null;
 				_pan = default;
 				_motion = null;
-				_animTimer.Stop();
+				_frames.Stop();
 			}
 			InvalidateVisual();
 			ScaleChanged?.Invoke(CurrentScale());
@@ -346,7 +342,7 @@ internal sealed class ImagePreviewControl : Grid
 				ToOrigin = toOrigin,
 				Started = Stopwatch.GetTimestamp(),
 			};
-			_animTimer.Start();
+			_frames.Start();
 			InvalidateVisual();
 		}
 
@@ -420,7 +416,8 @@ internal sealed class ImagePreviewControl : Grid
 			{
 				SampleMotion();
 				_motion = null;
-				_pan = new Point(_pan.X + e.Delta.X * 40.0, _pan.Y + e.Delta.Y * 40.0);
+				_frames.Stop();
+				_pan = new Point(_pan.X, _pan.Y + e.Delta.Y * 40.0);
 				ClampPan();
 				InvalidateVisual();
 			}
@@ -436,6 +433,7 @@ internal sealed class ImagePreviewControl : Grid
 			}
 			SampleMotion();
 			_motion = null;
+			_frames.Stop();
 			Point pos = e.GetPosition(this);
 			_dragStart = pos;
 			_dragInitialPan = _pan;
@@ -511,7 +509,7 @@ internal sealed class ImagePreviewControl : Grid
 				travel = 0;
 				return false;
 			}
-			double thumbLen = Math.Clamp(trackLen * (trackLen / (trackLen + maxAxis)), 24.0, trackLen);
+			double thumbLen = Math.Clamp(trackLen * (trackLen / (trackLen + maxAxis)), Math.Min(24.0, trackLen), trackLen);
 			travel = trackLen - thumbLen;
 			double panAxis = horizontal ? _pan.X : _pan.Y;
 			double start = travel > 0 ? (-panAxis / maxAxis) * travel : 0;
@@ -557,7 +555,7 @@ internal sealed class ImagePreviewControl : Grid
 				context.DrawImage(_bitmap, new Rect(0, 0, _bitmap.PixelSize.Width, _bitmap.PixelSize.Height), drawRect);
 			}
 
-			// Custom subtle dark scrollbars matching image_view.rs lines 254-286
+			// Custom scrollbars
 			if (TryGetBarMetrics(true, out Rect hTrack, out Rect hThumb, out _))
 			{
 				context.DrawRectangle(Palette.PillBg, null, hTrack, 4, 4);

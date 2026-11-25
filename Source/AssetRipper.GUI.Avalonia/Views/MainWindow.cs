@@ -18,16 +18,18 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Layout;
+using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using AssetRipper.Import.GamePlugins;
 
 namespace AssetRipper.GUI.Avalonia.Views;
 
 /// <summary>
-/// Main desktop window faithfully reproducing vnlens-gui's frameless titlebar,
-/// Finder-style Miller column browser, coordinated 220ms inspector &amp; scroll motion,
-/// floating glass status dock, breadcrumb path bar, and welcome drop target.
+/// Main desktop window with frameless titlebar, Miller column browser, animated inspector
+/// and scroll motion, floating status dock, breadcrumb path bar, and welcome drop target.
 /// </summary>
 internal sealed class MainWindow : Window
 {
@@ -63,7 +65,9 @@ internal sealed class MainWindow : Window
 	private readonly Border _statusIconHost;
 	private readonly Border _statusBadgeDot;
 	private readonly Border _statusPopover;
-	private readonly StackPanel _statusPopoverList;
+	private readonly ActivityLogView _activityLogView;
+	private int _statusRefreshPending;
+	private bool _closed;
 	private readonly Border _pathBarGlass;
 	private readonly StackPanel _pathSegmentsPanel;
 	private readonly VnlensButton _exportPreviewBtn;
@@ -98,11 +102,14 @@ internal sealed class MainWindow : Window
 	private bool _createTimestampSubfolder;
 	private bool _exporting;
 	private bool _loading;
+	private bool _showingSearch;
 	private string? _lastExportOutputPath;
 	private string _contextPathToCopy = "";
 
 	private readonly LayoutMotion _layoutMotion = new();
-	private readonly DispatcherTimer _layoutTimer;
+	private readonly FrameLoop _layoutFrames;
+	private double? _pendingLayoutScroll;
+	private bool _revealPath;
 	private double? _manualInspectorWidth;
 	private double _currentInset;
 	private bool _resizingInspector;
@@ -112,7 +119,7 @@ internal sealed class MainWindow : Window
 	private double _lastViewportWidth;
 
 	// Menu fade animation
-	private readonly DispatcherTimer _fadeTimer;
+	private readonly FrameLoop _fadeFrames;
 	private Control? _fadingControl;
 	private long _fadeStarted;
 
@@ -129,7 +136,7 @@ internal sealed class MainWindow : Window
 		FontFamily = Palette.UiFont;
 		FontSize = 13;
 
-		// Custom frameless titlebar (matching vnlens-gui/src/titlebar.rs)
+		// Custom frameless titlebar
 		ExtendClientAreaToDecorationsHint = true;
 		ExtendClientAreaTitleBarHeightHint = -1;
 		WindowDecorations = WindowDecorations.BorderOnly;
@@ -141,6 +148,7 @@ internal sealed class MainWindow : Window
 
 		_rootGrid = new Grid
 		{
+			Focusable = true,
 			Background = Palette.Background,
 		};
 
@@ -191,12 +199,6 @@ internal sealed class MainWindow : Window
 				e.Handled = true;
 				PerformSearch(_searchBox.Text ?? "");
 			}
-			else if (e.Key == Key.Escape)
-			{
-				e.Handled = true;
-				_searchBox.Text = "";
-				Focus();
-			}
 		};
 
 		StackPanel searchInner = new()
@@ -222,7 +224,7 @@ internal sealed class MainWindow : Window
 		};
 
 		_exportBtn = new VnlensButton(IconKind.Export, "Export…", active: false, enabled: true, ghost: true);
-		GlassSurface.SetTooltip(_exportBtn, $"Export ({Shortcut("E")})");
+		GlassSurface.SetTooltip(_exportBtn, $"Export Unity project ({Shortcut("E")})");
 		_exportBtn.Clicked += ToggleExportMenu;
 
 		_inspectorBtn = new VnlensButton(IconKind.Sidebar, active: false, enabled: false, ghost: true);
@@ -266,17 +268,22 @@ internal sealed class MainWindow : Window
 			Orientation = Orientation.Horizontal,
 			VerticalAlignment = VerticalAlignment.Stretch,
 		};
-		// 24px trailing spacer matching browser_view.rs line 275
 		_columnsPanel.Children.Add(new Border { Width = 24 });
 
 		_stripScroll = new ScrollViewer
 		{
+			Focusable = true,
+			BringIntoViewOnFocusChange = false,
 			HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
 			VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
 			Content = _columnsPanel,
 		};
+		// Inner lists reveal rows vertically; only LayoutMotion moves the strip horizontally.
+		_stripScroll.AddHandler(RequestBringIntoViewEvent, (_, e) => e.Handled = true);
+		_stripScroll.LayoutUpdated += (_, _) => ApplyPendingLayoutScroll();
+		_stripScroll.AddHandler(PointerWheelChangedEvent, OnBrowserWheel, RoutingStrategies.Tunnel);
 
-		// Welcome Drop Overlay (matching browser_view.rs::welcome)
+		// Welcome drop overlay
 		(_welcomeOverlay, _welcomeCard) = BuildWelcomeOverlay();
 
 		Grid browserHost = new()
@@ -289,7 +296,8 @@ internal sealed class MainWindow : Window
 		bodyGrid.Children.Add(browserHost);
 
 		// Right-hand Inspector Container (animated width via LayoutMotion)
-		_inspectorView = new InspectorView();
+		_inspectorView = new InspectorView { Focusable = true };
+		_inspectorView.AddHandler(PointerPressedEvent, (_, _) => _inspectorView.Focus(), RoutingStrategies.Tunnel);
 		_inspectorView.ReferenceClicked += NavigateToReference;
 
 		_inspectorResizeHandle = new Border
@@ -311,6 +319,11 @@ internal sealed class MainWindow : Window
 		_inspectorResizeHandle.PointerPressed += OnInspectorResizePressed;
 		_inspectorResizeHandle.PointerMoved += OnInspectorResizeMoved;
 		_inspectorResizeHandle.PointerReleased += OnInspectorResizeReleased;
+		_inspectorResizeHandle.PointerCaptureLost += (_, _) =>
+		{
+			_resizingInspector = false;
+			_inspectorResizeHandle.Background = Palette.Transparent;
+		};
 
 		Grid inspectorStack = new();
 		inspectorStack.Children.Add(_inspectorView);
@@ -333,7 +346,7 @@ internal sealed class MainWindow : Window
 		_rootGrid.Children.Add(_workspaceLayer);
 
 		// ================================================================
-		// 2. SETTINGS LAYER (matching view.rs::settings)
+		// 2. SETTINGS LAYER
 		// ================================================================
 		_settingsLayer = new Grid
 		{
@@ -373,17 +386,17 @@ internal sealed class MainWindow : Window
 		_rootGrid.Children.Add(_settingsLayer);
 
 		// ================================================================
-		// 3. FLOATING STATUS DOCK & POPOVERS (matching status_view.rs & browser_view.rs)
+		// 3. FLOATING STATUS DOCK & POPOVERS
 		// ================================================================
-		(_statusTile, _statusIconHost, _statusBadgeDot, _statusPopover, _statusPopoverList,
+		(_statusTile, _statusIconHost, _statusBadgeDot, _statusPopover, _activityLogView,
 		 _pathBarGlass, _pathSegmentsPanel, _exportPreviewBtn) = BuildStatusDock();
 
-		// Export dropdown menu (matching browser_view.rs::export_menu)
+		// Export dropdown menu
 		(_exportMenuOverlay, _exportMenuCard, _menuExportUnity, _menuExportPrimary,
 		 _menuExportSelected, _menuTimestampSubfolder, _menuReset) = BuildExportMenu();
 		_rootGrid.Children.Add(_exportMenuOverlay);
 
-		// Path right-click context menu (matching browser_view.rs::path_context_menu)
+		// Path right-click context menu
 		(_pathContextOverlay, _pathContextCard, _copyPathMenuItem) = BuildPathContextMenu();
 		_rootGrid.Children.Add(_pathContextOverlay);
 
@@ -396,11 +409,8 @@ internal sealed class MainWindow : Window
 		// ================================================================
 		// 4. TIMERS & EVENTS
 		// ================================================================
-		_layoutTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
-		_layoutTimer.Tick += (_, _) => StepLayoutAnimation();
-
-		_fadeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
-		_fadeTimer.Tick += (_, _) => StepMenuFade();
+		_layoutFrames = new FrameLoop(this, StepLayoutAnimation);
+		_fadeFrames = new FrameLoop(this, StepMenuFade);
 
 		PropertyChanged += (_, e) =>
 		{
@@ -419,18 +429,23 @@ internal sealed class MainWindow : Window
 			}
 		};
 
-		ActivityLogService.Instance.Changed += () =>
-		{
-			Dispatcher.UIThread.Post(RefreshStatusDock);
-		};
+		ActivityLogService.Instance.Changed += QueueStatusRefresh;
 
-		KeyDown += OnWorkspaceKeyDown;
-		Closed += (_, _) => _inspectorView.Dispose();
+		AddHandler(KeyDownEvent, OnWorkspaceKeyDown, RoutingStrategies.Tunnel);
+		Opened += (_, _) => _stripScroll.Focus();
+		Closed += (_, _) =>
+		{
+			_closed = true;
+			ActivityLogService.Instance.Changed -= QueueStatusRefresh;
+			_layoutFrames.Stop();
+			_fadeFrames.Stop();
+			_inspectorView.Dispose();
+		};
 
 		RefreshToolbarAndDock();
 	}
 
-	#region Titlebar Construction (matching vnlens-gui/src/titlebar.rs)
+	#region Titlebar Construction
 
 	private Control BuildTitlebar(
 		IReadOnlyList<Control> leftControls,
@@ -543,20 +558,13 @@ internal sealed class MainWindow : Window
 		};
 		btn.PointerEntered += (_, _) => btn.Background = isClose ? Palette.CloseHover : Palette.WindowControlHover;
 		btn.PointerExited += (_, _) => btn.Background = Palette.Transparent;
-		btn.PointerPressed += (_, e) =>
-		{
-			if (e.GetCurrentPoint(btn).Properties.IsLeftButtonPressed)
-			{
-				e.Handled = true;
-				onClick();
-			}
-		};
+		PointerClick.Bind(btn, _ => onClick());
 		return btn;
 	}
 
 	private void OnTitlebarDragPressed(object? sender, PointerPressedEventArgs e)
 	{
-		if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+		if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed || IsEditingControl(e.Source))
 		{
 			return;
 		}
@@ -587,7 +595,7 @@ internal sealed class MainWindow : Window
 
 	#endregion
 
-	#region Welcome Overlay (matching browser_view.rs::welcome)
+	#region Welcome Overlay
 
 	private (Grid Overlay, Border Card) BuildWelcomeOverlay()
 	{
@@ -677,7 +685,6 @@ internal sealed class MainWindow : Window
 		stack.Children.Add(buttons);
 		stack.Children.Add(hints);
 
-		// Dashed border card using Rectangle StrokeDashArray for authentic vnlens-gui look
 		global::Avalonia.Controls.Shapes.Rectangle dashedOutline = new()
 		{
 			Stroke = Palette.Border,
@@ -720,7 +727,7 @@ internal sealed class MainWindow : Window
 		Border StatusIconHost,
 		Border StatusBadgeDot,
 		Border StatusPopover,
-		StackPanel StatusPopoverList,
+		ActivityLogView ActivityLog,
 		Border PathBarGlass,
 		StackPanel PathSegmentsPanel,
 		VnlensButton ExportPreviewBtn) BuildStatusDock()
@@ -773,29 +780,18 @@ internal sealed class MainWindow : Window
 		};
 
 		// 2. Activity Details Popover (bottom: 50px, left: 12px)
-		StackPanel popoverList = new()
-		{
-			Orientation = Orientation.Vertical,
-			Spacing = 6,
-		};
-
-		ScrollViewer popoverScroll = new()
-		{
-			MaxHeight = 340,
-			HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-			VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-			Content = popoverList,
-		};
+		ActivityLogView activityLog = new();
+		activityLog.ShowOutputRequested += OpenInSystemExplorer;
 
 		Border statusPopover = GlassSurface.Create(10);
-		statusPopover.MaxWidth = 650;
+		statusPopover.Width = 650;
 		statusPopover.MinWidth = 320;
 		statusPopover.Padding = new Thickness(8);
 		statusPopover.HorizontalAlignment = HorizontalAlignment.Left;
 		statusPopover.VerticalAlignment = VerticalAlignment.Bottom;
 		statusPopover.Margin = new Thickness(12, 0, 12, 50);
 		statusPopover.IsVisible = false;
-		statusPopover.Child = popoverScroll;
+		statusPopover.Child = activityLog;
 		_rootGrid.Children.Add(statusPopover);
 
 		// 3. Breadcrumb Path Bar (glass pill next to status tile)
@@ -815,8 +811,17 @@ internal sealed class MainWindow : Window
 		Border pathBarGlass = GlassSurface.Create(10);
 		pathBarGlass.Padding = new Thickness(5, 3);
 		pathBarGlass.VerticalAlignment = VerticalAlignment.Bottom;
+		pathBarGlass.HorizontalAlignment = HorizontalAlignment.Left;
 		pathBarGlass.IsVisible = false;
 		pathBarGlass.Child = pathScroll;
+		pathScroll.LayoutUpdated += (_, _) =>
+		{
+			if (_revealPath)
+			{
+				_revealPath = false;
+				pathScroll.Offset = new Vector(Math.Max(0, pathScroll.Extent.Width - pathScroll.Viewport.Width), 0);
+			}
+		};
 
 		// 4. Right-aligned primary Export button when inspecting a leaf item
 		VnlensButton exportPreviewBtn = new(label: "Export…", active: true, enabled: false, ghost: false);
@@ -827,7 +832,7 @@ internal sealed class MainWindow : Window
 		// Dock container
 		Grid dock = new()
 		{
-			ColumnDefinitions = new ColumnDefinitions("Auto,8,Auto,*,Auto"),
+			ColumnDefinitions = new ColumnDefinitions("Auto,8,*,8,Auto"),
 			Margin = new Thickness(12, 0, 12, 12),
 			VerticalAlignment = VerticalAlignment.Bottom,
 			HorizontalAlignment = HorizontalAlignment.Stretch,
@@ -842,7 +847,7 @@ internal sealed class MainWindow : Window
 
 		_rootGrid.Children.Add(dock);
 
-		return (statusTile, iconHost, badgeDot, statusPopover, popoverList, pathBarGlass, pathSegments, exportPreviewBtn);
+		return (statusTile, iconHost, badgeDot, statusPopover, activityLog, pathBarGlass, pathSegments, exportPreviewBtn);
 	}
 
 	private (
@@ -903,11 +908,11 @@ internal sealed class MainWindow : Window
 		list.Children.Add(resetItem);
 
 		Border card = GlassSurface.Create(10);
-		card.Width = 240;
+		card.Width = 230;
 		card.Padding = new Thickness(4);
 		card.HorizontalAlignment = HorizontalAlignment.Right;
 		card.VerticalAlignment = VerticalAlignment.Top;
-		card.Margin = new Thickness(0, Palette.TitlebarHeight - 4, 12, 0);
+		card.Margin = new Thickness(0, Palette.TitlebarHeight - 6, 12, 0);
 		card.Child = list;
 
 		Border overlay = new()
@@ -1023,6 +1028,7 @@ internal sealed class MainWindow : Window
 		_confirmTcs = new TaskCompletionSource<bool>();
 		_confirmMessage.Text = $"{Localization.ExportDirectoryDeleteUserConfirmation}\n\n{path}";
 		_confirmOverlay.IsVisible = true;
+		_rootGrid.Focus();
 		return _confirmTcs.Task;
 	}
 
@@ -1031,6 +1037,7 @@ internal sealed class MainWindow : Window
 		_confirmOverlay.IsVisible = false;
 		_confirmTcs?.TrySetResult(result);
 		_confirmTcs = null;
+		_stripScroll.Focus();
 	}
 
 	#endregion
@@ -1131,6 +1138,7 @@ internal sealed class MainWindow : Window
 		_workspaceLayer.IsVisible = true;
 
 		_loading = true;
+		_inspectorView.Inspect(null);
 		RefreshToolbarAndDock();
 
 		using IDisposable task = ActivityLogService.Instance.BeginTask($"Loading {paths.Count} item(s)…");
@@ -1141,7 +1149,7 @@ internal sealed class MainWindow : Window
 		}
 		catch (Exception ex)
 		{
-			ActivityLogService.Instance.ReportError($"Load failed: {ex.Message}");
+			ActivityLogService.Instance.ReportError("Load failed.", ex);
 		}
 		finally
 		{
@@ -1172,7 +1180,7 @@ internal sealed class MainWindow : Window
 
 	private async Task ExportProjectDialogAsync(bool primaryContent)
 	{
-		if (!GameFileLoader.IsLoaded || _exporting)
+		if (!GameFileLoader.IsLoaded || _exporting || _loading)
 		{
 			return;
 		}
@@ -1212,7 +1220,7 @@ internal sealed class MainWindow : Window
 		}
 		catch (Exception ex)
 		{
-			ActivityLogService.Instance.ReportError($"Export failed: {ex.Message}");
+			ActivityLogService.Instance.ReportError("Export failed.", ex);
 		}
 		finally
 		{
@@ -1286,7 +1294,7 @@ internal sealed class MainWindow : Window
 		}
 		catch (Exception ex)
 		{
-			ActivityLogService.Instance.ReportError($"Export failed: {ex.Message}");
+			ActivityLogService.Instance.ReportError("Export failed.", ex);
 		}
 		finally
 		{
@@ -1375,6 +1383,7 @@ internal sealed class MainWindow : Window
 		}
 
 		List<SearchHit> hits = AssetContentService.SearchAssets(query.Trim());
+		_showingSearch = true;
 		List<BrowserItem> hitItems = BrowserFolderBuilder.BuildSearchHitItems(hits);
 
 		ClearAllColumns();
@@ -1398,9 +1407,11 @@ internal sealed class MainWindow : Window
 
 	private void BuildRootBrowser()
 	{
+		_showingSearch = false;
 		ClearAllColumns();
 		_selectedLeaf = null;
 		_selectedLeafDepth = null;
+		_revealColumnDepth = 0;
 		_inspectorView.Inspect(null);
 
 		if (!GameFileLoader.IsLoaded)
@@ -1419,6 +1430,7 @@ internal sealed class MainWindow : Window
 		SetActiveColumn(0);
 		TriggerLayoutUpdate(animate: true);
 		RefreshToolbarAndDock();
+		_stripScroll.Focus();
 	}
 
 	private ColumnView CreateColumn(int depth, List<BrowserItem> items, bool animate)
@@ -1426,17 +1438,68 @@ internal sealed class MainWindow : Window
 		ColumnView col = new(depth, items, animate);
 		col.ColumnClicked += c =>
 		{
-			SetActiveColumn(c.Depth);
-			RefreshToolbarAndDock();
+			if (_activeColumn != c.Depth)
+			{
+				ActivateColumn(c.Depth);
+			}
+			_stripScroll.Focus();
 		};
 		col.ItemActivated += OnColumnItemActivated;
 		col.WidthChangedByUser += (_, _) => TriggerLayoutUpdate(animate: false);
+		col.SelectionCleared += c =>
+		{
+			TrimColumnsAfter(c.Depth);
+			ActivateColumn(c.Depth, focusBrowser: false);
+		};
 		return col;
 	}
 
-	private void OnColumnItemActivated(ColumnView column, int rowIndex, BrowserItem item, bool doubleClicked)
+	private async void OnColumnItemActivated(ColumnView column, int rowIndex, BrowserItem item, bool doubleClicked)
 	{
+		if (_loading || _exporting) return;
+		item = column.ResolveItem(item);
+		if (item.Kind == BrowserItemKind.MountedEntry && item.Target is ValueTuple<GameArchive, GameArchiveEntry> mounted)
+		{
+			_loading = true;
+			RefreshToolbarAndDock();
+			using IDisposable task = ActivityLogService.Instance.BeginTask($"Loading {mounted.Item2.Name}…");
+			try
+			{
+				object target = await Task.Run(() => GameFileLoader.LoadMountedEntry(mounted.Item1, mounted.Item2));
+				BrowserItem original = item;
+				item = new BrowserItem { Name = item.Name, Kind = target is AssetCollection ? BrowserItemKind.Collection : BrowserItemKind.ResourceFile,
+					Icon = item.Icon, IsContainer = target is AssetCollection, Target = target, Meta = item.Meta,
+					CompanionNames = item.CompanionNames };
+				column.SetLoadedItem(original, item);
+			}
+			catch (Exception ex) { ActivityLogService.Instance.ReportError("Entry load failed.", ex); return; }
+			finally { _loading = false; RefreshToolbarAndDock(); }
+		}
+		if (item.Kind == BrowserItemKind.MountedArchive)
+		{
+			_loading = true;
+			RefreshToolbarAndDock();
+			try { await Task.Run(() => ((GameArchive)item.Target).Entries.Count); }
+			catch (Exception ex) { ActivityLogService.Instance.ReportError("Archive mount failed.", ex); return; }
+			finally { _loading = false; RefreshToolbarAndDock(); }
+		}
 		int depth = column.Depth;
+		if (depth >= _columns.Count || !ReferenceEquals(_columns[depth], column) || column.SelectedIndex != rowIndex)
+		{
+			return;
+		}
+		_stripScroll.Focus();
+		if (item.IsContainer && depth + 1 < _columns.Count && Equals(_columns[depth + 1].Tag, item.Target))
+		{
+			ActivateColumn(depth);
+			_revealColumnDepth = depth + 1;
+			TriggerLayoutUpdate(animate: true);
+			if (doubleClicked)
+			{
+				EnterColumn();
+			}
+			return;
+		}
 		SetActiveColumn(depth);
 		TrimColumnsAfter(depth);
 
@@ -1448,13 +1511,13 @@ internal sealed class MainWindow : Window
 
 			List<BrowserItem> children = BrowserFolderBuilder.BuildChildren(item);
 			ColumnView childCol = CreateColumn(depth + 1, children, animate: true);
+			childCol.Tag = item.Target;
 			_columns.Add(childCol);
 			_columnsPanel.Children.Insert(_columns.Count - 1, childCol);
 
-			if (doubleClicked && children.Count > 0)
+			if (doubleClicked)
 			{
-				SetActiveColumn(depth + 1);
-				childCol.SelectIndex(0, raiseEvent: true);
+				EnterColumn();
 				return;
 			}
 
@@ -1464,6 +1527,7 @@ internal sealed class MainWindow : Window
 		{
 			_selectedLeaf = item;
 			_selectedLeafDepth = depth;
+			_showInspector = true;
 			_inspectorView.Inspect(item);
 			_revealColumnDepth = depth;
 		}
@@ -1578,48 +1642,81 @@ internal sealed class MainWindow : Window
 		_activeColumn = 0;
 	}
 
-	private void GoHome()
+	private void ActivateColumn(int depth, bool focusBrowser = true)
 	{
-		if (!GameFileLoader.IsLoaded)
+		SetActiveColumn(depth);
+		BrowserItem? item = _columns[_activeColumn].SelectedItem;
+		BrowserItem? leaf = item is { IsContainer: false } ? item : null;
+		if (!ReferenceEquals(_selectedLeaf, leaf))
+		{
+			_selectedLeaf = leaf;
+			_inspectorView.Inspect(_showInspector ? leaf : null);
+		}
+		_selectedLeafDepth = leaf is null ? null : _activeColumn;
+		_revealColumnDepth = _activeColumn;
+		TriggerLayoutUpdate(animate: true);
+		RefreshToolbarAndDock();
+		if (focusBrowser)
+		{
+			_stripScroll.Focus();
+		}
+	}
+
+	private void EnterColumn()
+	{
+		if (_columns.Count == 0 || _loading || _exporting)
 		{
 			return;
 		}
-		_searchBox.Text = "";
-		BuildRootBrowser();
+		if (_activeColumn + 1 < _columns.Count)
+		{
+			ActivateColumn(_activeColumn + 1);
+			if (_columns[_activeColumn].ItemCount > 0)
+			{
+				ColumnView child = _columns[_activeColumn];
+				child.SelectIndex(0, raiseEvent: false);
+				OnColumnItemActivated(child, 0, child.SelectedItem!, false);
+			}
+		}
+		else if (_columns[_activeColumn] is { SelectedItem: { } item, SelectedIndex: { } row } column)
+		{
+			OnColumnItemActivated(column, row, item, false);
+		}
+		_stripScroll.Focus();
 	}
 
-	private void GoBack()
+	private void GoHome()
 	{
+		if (_showingSearch)
+		{
+			_searchBox.Text = "";
+			BuildRootBrowser();
+			_stripScroll.Focus();
+			return;
+		}
 		if (_columns.Count == 0)
 		{
 			return;
 		}
-		if (_selectedLeaf is not null)
-		{
-			_selectedLeaf = null;
-			_selectedLeafDepth = null;
-			_inspectorView.Inspect(null);
-			_columns[_activeColumn].SelectIndex(null, raiseEvent: false);
-			TriggerLayoutUpdate(animate: true);
-			RefreshToolbarAndDock();
-			return;
-		}
+		_searchBox.Text = "";
+		TrimColumnsAfter(0);
+		_columns[0].SelectIndex(null, raiseEvent: false);
+		ActivateColumn(0);
+	}
+
+	private void GoBack()
+	{
 		if (_activeColumn > 0)
 		{
-			int target = _activeColumn - 1;
-			TrimColumnsAfter(target);
-			SetActiveColumn(target);
-			_revealColumnDepth = target;
-			TriggerLayoutUpdate(animate: true);
-			RefreshToolbarAndDock();
+			ActivateColumn(_activeColumn - 1);
 		}
 		else if (_columns.Count > 1)
 		{
 			TrimColumnsAfter(0);
-			SetActiveColumn(0);
-			TriggerLayoutUpdate(animate: true);
-			RefreshToolbarAndDock();
+			_columns[0].SelectIndex(null, raiseEvent: false);
+			ActivateColumn(0);
 		}
+		_stripScroll.Focus();
 	}
 
 	private void CollapseToPathDepth(int depth)
@@ -1628,24 +1725,15 @@ internal sealed class MainWindow : Window
 		{
 			return;
 		}
-		ColumnView col = _columns[depth];
-		if (col.SelectedItem is { IsContainer: true })
+		int target = depth;
+		if (_columns[depth].SelectedItem is { IsContainer: true } && depth + 1 < _columns.Count)
 		{
-			TrimColumnsAfter(depth + 1);
-			_selectedLeaf = null;
-			_selectedLeafDepth = null;
-			_inspectorView.Inspect(null);
-			SetActiveColumn(depth);
-			_revealColumnDepth = depth + 1;
+			target++;
+			_columns[target].SelectIndex(null, raiseEvent: false);
 		}
-		else
-		{
-			TrimColumnsAfter(depth);
-			SetActiveColumn(depth);
-			_revealColumnDepth = depth;
-		}
-		TriggerLayoutUpdate(animate: true);
-		RefreshToolbarAndDock();
+		ClosePopups();
+		TrimColumnsAfter(target);
+		ActivateColumn(target);
 	}
 
 	private void TriggerLayoutUpdate(bool animate)
@@ -1653,22 +1741,24 @@ internal sealed class MainWindow : Window
 		double viewport = Bounds.Width;
 		if (viewport <= 0 || _columns.Count == 0)
 		{
-			_currentInset = 0;
-			_inspectorContainer.Width = 0;
-			_inspectorContainer.IsVisible = false;
+			_layoutFrames.Stop();
+			_layoutMotion.Retarget(default, default, animate: false);
+			_revealColumnDepth = null;
+			StepLayoutAnimation();
 			return;
 		}
 
 		bool preview = _showInspector && _selectedLeaf is not null;
+		int? reveal = _revealColumnDepth;
+		_revealColumnDepth = null;
 		int depth;
 		if (_selectedLeafDepth.HasValue)
 		{
 			depth = _selectedLeafDepth.Value;
 		}
-		else if (_revealColumnDepth.HasValue)
+		else if (reveal.HasValue)
 		{
-			depth = _revealColumnDepth.Value;
-			_revealColumnDepth = null;
+			depth = reveal.Value;
 		}
 		else
 		{
@@ -1696,28 +1786,56 @@ internal sealed class MainWindow : Window
 			preview,
 			_manualInspectorWidth);
 
+		if (animate && !_resizingInspector && _layoutMotion.IsAnimating && target == _layoutMotion.Target)
+		{
+			return;
+		}
 		LayoutSnapshot from = new(_currentInset, _stripScroll.Offset.X);
 		_layoutMotion.Retarget(from, target, animate && !_resizingInspector);
-		StepLayoutAnimation();
-		if (_layoutMotion.IsAnimating)
+		if (StepLayoutAnimation())
 		{
-			_layoutTimer.Start();
+			_layoutFrames.Start();
+		}
+		else
+		{
+			_layoutFrames.Stop();
 		}
 	}
 
-	private void StepLayoutAnimation()
+	private bool StepLayoutAnimation()
 	{
 		(LayoutSnapshot current, bool animating) = _layoutMotion.Sample();
 		_currentInset = current.Inset;
 		_inspectorContainer.Width = Math.Max(0, current.Inset);
-		_inspectorContainer.IsVisible = current.Inset > 0.5;
-		_stripScroll.Offset = new Vector(current.Scroll, _stripScroll.Offset.Y);
+		_inspectorContainer.IsVisible = current.Inset > 0;
+		_pendingLayoutScroll = current.Scroll;
+		// Apply scrolling after the new inspector width has updated the viewport and extent.
+		_stripScroll.InvalidateArrange();
 
 		_exportPreviewBtn.IsVisible = !_showSettings && current.Inset > 0.5 && _selectedLeaf is not null;
 
-		if (!animating)
+		return animating;
+	}
+
+	private void ApplyPendingLayoutScroll()
+	{
+		if (_pendingLayoutScroll is not { } scroll)
 		{
-			_layoutTimer.Stop();
+			return;
+		}
+		_pendingLayoutScroll = null;
+		double maximum = Math.Max(0, _stripScroll.Extent.Width - _stripScroll.Viewport.Width);
+		_stripScroll.Offset = new Vector(Math.Clamp(scroll, 0, maximum), 0);
+	}
+
+	private void OnBrowserWheel(object? sender, PointerWheelEventArgs e)
+	{
+		if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
+		{
+			double delta = Math.Abs(e.Delta.X) > Math.Abs(e.Delta.Y) ? e.Delta.X : e.Delta.Y;
+			double maximum = Math.Max(0, _stripScroll.Extent.Width - _stripScroll.Viewport.Width);
+			_stripScroll.Offset = new Vector(Math.Clamp(_stripScroll.Offset.X - delta * Palette.RowHeight, 0, maximum), 0);
+			e.Handled = true;
 		}
 	}
 
@@ -1777,6 +1895,13 @@ internal sealed class MainWindow : Window
 			return;
 		}
 		_showInspector = !_showInspector;
+		_manualInspectorWidth = null;
+		_revealColumnDepth = _activeColumn;
+		_inspectorView.Inspect(_showInspector ? _selectedLeaf : null);
+		if (!_showInspector)
+		{
+			_stripScroll.Focus();
+		}
 		TriggerLayoutUpdate(animate: true);
 		RefreshToolbarAndDock();
 	}
@@ -1790,13 +1915,20 @@ internal sealed class MainWindow : Window
 		if (_showSettings)
 		{
 			_settingsView.Refresh();
+			_layoutFrames.Stop();
+			_rootGrid.Focus();
+		}
+		else
+		{
+			TriggerLayoutUpdate(animate: false);
+			_stripScroll.Focus();
 		}
 		RefreshToolbarAndDock();
 	}
 
 	private void ToggleExportMenu()
 	{
-		if (_exporting)
+		if (_exporting || _loading)
 		{
 			return;
 		}
@@ -1807,6 +1939,11 @@ internal sealed class MainWindow : Window
 		if (_showExportMenu)
 		{
 			StartMenuFade(_exportMenuCard);
+			_rootGrid.Focus();
+		}
+		else
+		{
+			_stripScroll.Focus();
 		}
 	}
 
@@ -1816,50 +1953,64 @@ internal sealed class MainWindow : Window
 		_exportMenuOverlay.IsVisible = false;
 		_exportBtn.IsActive = false;
 		_pathContextOverlay.IsVisible = false;
+		_fadeFrames.Stop();
+		if (_fadingControl is not null)
+		{
+			_fadingControl.Opacity = 1;
+			_fadingControl = null;
+		}
+		if (!_showSettings)
+		{
+			_stripScroll.Focus();
+		}
 	}
 
 	private void StartMenuFade(Control target)
 	{
+		if (_fadingControl is not null)
+		{
+			_fadingControl.Opacity = 1;
+		}
 		_fadingControl = target;
 		_fadingControl.Opacity = 0;
 		_fadeStarted = Stopwatch.GetTimestamp();
-		_fadeTimer.Start();
+		_fadeFrames.Start();
 	}
 
-	private void StepMenuFade()
+	private bool StepMenuFade()
 	{
 		if (_fadingControl is null)
 		{
-			_fadeTimer.Stop();
-			return;
+			return false;
 		}
 		double t = Stopwatch.GetElapsedTime(_fadeStarted).TotalSeconds / Palette.MenuEnterDuration.TotalSeconds;
+		_fadingControl.Opacity = LayoutMotion.EaseInOut(t);
 		if (t >= 1.0)
 		{
-			_fadingControl.Opacity = 1.0;
 			_fadingControl = null;
-			_fadeTimer.Stop();
+			return false;
 		}
-		else
-		{
-			_fadingControl.Opacity = LayoutMotion.EaseInOut(t);
-		}
+		return true;
 	}
 
 	private void RefreshToolbarAndDock()
 	{
 		bool loaded = GameFileLoader.IsLoaded;
+		bool mounted = GameFileLoader.MountedGame is not null;
+		bool hasExportData = loaded && (!mounted || GameFileLoader.GameBundle.HasAnyAssetCollections() || GameFileLoader.GameBundle.Resources.Count > 0);
 
 		_homeBtn.IsActionEnabled = loaded;
-		_backBtn.IsActionEnabled = _activeColumn > 0 || _columns.Count > 1 || _selectedLeaf is not null;
+		_backBtn.IsActionEnabled = _activeColumn > 0 || _columns.Count > 1;
 		_searchContainer.IsVisible = loaded;
-		_exportBtn.IsActionEnabled = !_exporting;
+		_exportBtn.IsActionEnabled = !_exporting && !_loading;
 		_inspectorBtn.IsActionEnabled = _selectedLeaf is not null;
 		_inspectorBtn.IsActive = _showInspector && _selectedLeaf is not null;
 
-		_menuExportUnity.IsActionEnabled = loaded && !_exporting;
-		_menuExportPrimary.IsActionEnabled = loaded && !_exporting;
-		_menuExportSelected.IsActionEnabled = _selectedLeaf is not null && !_exporting;
+		_menuExportUnity.SetLabel(mounted ? "Export opened entries as Unity project…" : "Export Unity Project…");
+		_menuExportPrimary.SetLabel(mounted ? "Export opened entries as primary content…" : "Export Primary Content…");
+		_menuExportUnity.IsActionEnabled = hasExportData && !_exporting && !_loading;
+		_menuExportPrimary.IsActionEnabled = hasExportData && !_exporting && !_loading;
+		_menuExportSelected.IsActionEnabled = _selectedLeaf is not null && !_exporting && !_loading;
 		_menuReset.IsActionEnabled = loaded && !_exporting && !_loading;
 
 		_exportPreviewBtn.IsVisible = !_showSettings && _showInspector && _selectedLeaf is not null && _currentInset > 0.5;
@@ -1879,6 +2030,7 @@ internal sealed class MainWindow : Window
 		}
 
 		_pathBarGlass.IsVisible = true;
+		_revealPath = true;
 
 		// Root "Loaded" chip
 		Border rootChip = CreatePathChip(
@@ -1891,7 +2043,7 @@ internal sealed class MainWindow : Window
 
 		string runningPath = "";
 		List<(int Depth, BrowserItem Item, string FullPath)> segments = new();
-		for (int d = 0; d < _columns.Count; d++)
+		for (int d = 0; d <= _activeColumn && d < _columns.Count; d++)
 		{
 			BrowserItem? sel = _columns[d].SelectedItem;
 			if (sel is null)
@@ -1980,15 +2132,33 @@ internal sealed class MainWindow : Window
 		Canvas.SetLeft(_pathContextCard, left);
 		Canvas.SetTop(_pathContextCard, top);
 		_pathContextOverlay.IsVisible = true;
+		_rootGrid.Focus();
 		StartMenuFade(_pathContextCard);
+	}
+
+	private void QueueStatusRefresh()
+	{
+		// Import can produce many log lines between frames. Keep only one pending UI refresh.
+		if (Interlocked.Exchange(ref _statusRefreshPending, 1) != 0)
+		{
+			return;
+		}
+		Dispatcher.UIThread.Post(() =>
+		{
+			Interlocked.Exchange(ref _statusRefreshPending, 0);
+			if (!_closed)
+			{
+				RefreshStatusDock();
+			}
+		}, DispatcherPriority.Background);
 	}
 
 	private void RefreshStatusDock()
 	{
-		ActivityLogService log = ActivityLogService.Instance;
-		bool busy = log.IsBusy || _loading || _exporting;
-		bool failed = log.HasErrors;
-		bool hasWarn = !string.IsNullOrEmpty(log.LastWarning);
+		ActivityLogSnapshot snapshot = ActivityLogService.Instance.GetSnapshot(includeEntries: _showStatus);
+		bool busy = snapshot.IsBusy || _loading || _exporting;
+		bool failed = snapshot.ErrorCount > 0;
+		bool hasWarning = snapshot.WarningCount > 0;
 
 		if (busy)
 		{
@@ -1996,307 +2166,169 @@ internal sealed class MainWindow : Window
 			{
 				_statusIconHost.Child = new VnlensSpinner(15, Palette.Accent);
 			}
-			_statusBadgeDot.IsVisible = failed || hasWarn;
+			_statusBadgeDot.IsVisible = failed || hasWarning;
 			_statusBadgeDot.Background = failed ? Palette.Danger : Palette.Warning;
-		}
-		else if (failed)
-		{
-			_statusIconHost.Child = Icons.Glyph(IconKind.Alert, 16, Palette.Danger);
-			_statusBadgeDot.IsVisible = false;
-		}
-		else if (hasWarn)
-		{
-			_statusIconHost.Child = Icons.Glyph(IconKind.Alert, 16, Palette.Warning);
-			_statusBadgeDot.IsVisible = false;
 		}
 		else
 		{
-			_statusIconHost.Child = Icons.Glyph(IconKind.Check, 16, Palette.Success);
+			_statusIconHost.Child = failed
+				? Icons.Glyph(IconKind.Alert, 16, Palette.Danger)
+				: hasWarning
+					? Icons.Glyph(IconKind.Alert, 16, Palette.Warning)
+					: Icons.Glyph(IconKind.Check, 16, Palette.Success);
 			_statusBadgeDot.IsVisible = false;
 		}
 
-		if (!_showStatus)
+		if (_showStatus)
 		{
-			return;
-		}
-
-		_statusPopoverList.Children.Clear();
-
-		if (busy && log.ActiveJobLabel is { } jobLabel)
-		{
-			Grid busyRow = new()
-			{
-				ColumnDefinitions = new ColumnDefinitions("*,8,Auto"),
-				Margin = new Thickness(6, 4),
-			};
-			busyRow.Children.Add(new TextBlock
-			{
-				Text = jobLabel,
-				FontFamily = Palette.UiFont,
-				FontSize = 11,
-				Foreground = Palette.Accent,
-				TextWrapping = TextWrapping.Wrap,
-				VerticalAlignment = VerticalAlignment.Center,
-			});
-			VnlensSpinner sp = new(14, Palette.Accent);
-			Grid.SetColumn(sp, 2);
-			busyRow.Children.Add(sp);
-			_statusPopoverList.Children.Add(busyRow);
-		}
-
-		if (!string.IsNullOrEmpty(log.Status))
-		{
-			_statusPopoverList.Children.Add(new TextBlock
-			{
-				Text = log.Status,
-				Margin = new Thickness(6, 2),
-				FontFamily = Palette.UiFont,
-				FontSize = 11,
-				Foreground = Palette.Secondary,
-				TextWrapping = TextWrapping.Wrap,
-			});
-		}
-
-		if (log.LastWarning is { } warn)
-		{
-			_statusPopoverList.Children.Add(new TextBlock
-			{
-				Text = warn,
-				Margin = new Thickness(6, 2),
-				FontFamily = Palette.UiFont,
-				FontSize = 11,
-				Foreground = Palette.Warning,
-				TextWrapping = TextWrapping.Wrap,
-			});
-		}
-
-		IReadOnlyList<ActivityError> errors = log.GetErrors();
-		foreach (ActivityError err in errors.TakeLast(10))
-		{
-			ActivityError captured = err;
-			Border errRow = new()
-			{
-				Padding = new Thickness(8, 4, 4, 4),
-				CornerRadius = new CornerRadius(6),
-			};
-			errRow.PointerEntered += (_, _) => errRow.Background = Palette.RowHover;
-			errRow.PointerExited += (_, _) => errRow.Background = Palette.Transparent;
-
-			Grid grid = new()
-			{
-				ColumnDefinitions = new ColumnDefinitions("*,4,Auto,4,Auto"),
-				VerticalAlignment = VerticalAlignment.Center,
-			};
-			grid.Children.Add(new TextBlock
-			{
-				Text = captured.Message,
-				FontFamily = Palette.UiFont,
-				FontSize = 11,
-				Foreground = Palette.Danger,
-				TextWrapping = TextWrapping.Wrap,
-				VerticalAlignment = VerticalAlignment.Center,
-			});
-
-			VnlensButton copyBtn = new(IconKind.Copy, ghost: true, height: 22, iconSize: 12);
-			GlassSurface.SetTooltip(copyBtn, "Copy");
-			copyBtn.Clicked += async () =>
-			{
-				if (Clipboard is not null)
-				{
-					await Clipboard.SetTextAsync(captured.Message);
-				}
-			};
-			Grid.SetColumn(copyBtn, 2);
-			grid.Children.Add(copyBtn);
-
-			VnlensButton dismissBtn = new(IconKind.WindowClose, ghost: true, height: 22, iconSize: 12);
-			GlassSurface.SetTooltip(dismissBtn, "Dismiss");
-			dismissBtn.Clicked += () => ActivityLogService.Instance.DismissError(captured.Id);
-			Grid.SetColumn(dismissBtn, 4);
-			grid.Children.Add(dismissBtn);
-
-			errRow.Child = grid;
-			_statusPopoverList.Children.Add(errRow);
-		}
-
-		if (!string.IsNullOrEmpty(_lastExportOutputPath))
-		{
-			string outputPath = _lastExportOutputPath;
-			VnlensButton showOutputBtn = new(label: "Show output", active: false, enabled: true, ghost: false, height: 26);
-			showOutputBtn.HorizontalAlignment = HorizontalAlignment.Left;
-			showOutputBtn.Margin = new Thickness(6, 4, 0, 2);
-			showOutputBtn.Clicked += () => OpenInSystemExplorer(outputPath);
-			_statusPopoverList.Children.Add(showOutputBtn);
-		}
-
-		// Recent log lines
-		IReadOnlyList<ActivityLogEntry> recent = log.GetRecentLogs();
-		if (recent.Count > 0)
-		{
-			_statusPopoverList.Children.Add(new Border
-			{
-				Height = 1,
-				Margin = new Thickness(4, 4),
-				Background = Palette.Border,
-			});
-
-			foreach (ActivityLogEntry entry in recent.TakeLast(15))
-			{
-				IBrush color = entry.Type switch
-				{
-					Import.Logging.LogType.Error => Palette.Danger,
-					Import.Logging.LogType.Warning => Palette.Warning,
-					_ => Palette.Tertiary,
-				};
-				_statusPopoverList.Children.Add(new TextBlock
-				{
-					Text = entry.Category == Import.Logging.LogCategory.None
-						? entry.Message
-						: $"[{entry.Category}] {entry.Message}",
-					Margin = new Thickness(6, 1),
-					FontFamily = Palette.MonoFont,
-					FontSize = 10,
-					Foreground = color,
-					TextWrapping = TextWrapping.Wrap,
-				});
-			}
+			_activityLogView.Refresh(snapshot, _lastExportOutputPath);
 		}
 	}
 
 	#endregion
 
-	#region Keyboard Shortcuts (matching vnlens-gui/src/workspace.rs::bind_keys)
+	#region Keyboard Shortcuts
+
+	private static bool IsEditingControl(object? source) => source is Visual visual
+		&& visual.GetSelfAndVisualAncestors().Any(v => v is TextBox or ComboBox or Slider or SelectableTextBlock);
 
 	private void OnWorkspaceKeyDown(object? sender, KeyEventArgs e)
 	{
-		bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta);
-		bool shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
-		bool alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
+		KeyModifiers modifiers = e.KeyModifiers;
+		bool primary = modifiers is KeyModifiers.Control or KeyModifiers.Meta;
+		bool primaryShift = modifiers == (KeyModifiers.Control | KeyModifiers.Shift)
+			|| modifiers == (KeyModifiers.Meta | KeyModifiers.Shift);
+		bool plain = modifiers == KeyModifiers.None;
 
-		if (e.Key == Key.Escape)
+		if (_confirmOverlay.IsVisible)
 		{
-			if (_confirmOverlay.IsVisible)
+			if (plain && e.Key == Key.Escape)
 			{
 				ResolveConfirmation(false);
 				e.Handled = true;
 			}
+			return;
+		}
+		if (plain && e.Key == Key.Escape)
+		{
+			if (IsEditingControl(e.Source) && !_searchBox.IsKeyboardFocusWithin)
+			{
+				return;
+			}
+			if (_showSettings)
+			{
+				ToggleSettings();
+			}
 			else if (_showExportMenu || _pathContextOverlay.IsVisible)
 			{
 				ClosePopups();
-				e.Handled = true;
 			}
 			else if (_showStatus)
 			{
 				_showStatus = false;
 				_statusPopover.IsVisible = false;
-				e.Handled = true;
 			}
-			else if (_showSettings)
+			else if (_searchBox.IsKeyboardFocusWithin)
 			{
-				ToggleSettings();
-				e.Handled = true;
+				_searchBox.Text = "";
+				_stripScroll.Focus();
 			}
+			else if (_showInspector && _selectedLeaf is not null)
+			{
+				ToggleInspector();
+			}
+			e.Handled = true;
 			return;
 		}
 
-		if (ctrl && e.Key == Key.OemComma)
+		if (primary && e.Key == Key.OemComma)
 		{
 			ToggleSettings();
 			e.Handled = true;
 			return;
 		}
-
 		if (_showSettings)
 		{
 			return;
 		}
-
-		if (ctrl && shift && e.Key == Key.O)
+		if (primaryShift && e.Key == Key.O)
 		{
 			_ = OpenFolderDialogAsync();
 			e.Handled = true;
 			return;
 		}
-		if (ctrl && e.Key == Key.O)
+		if (primary)
 		{
-			_ = OpenFilesDialogAsync();
+			switch (e.Key)
+			{
+				case Key.O:
+					_ = OpenFilesDialogAsync();
+					break;
+				case Key.E:
+					ClosePopups();
+					_ = ExportProjectDialogAsync(primaryContent: false);
+					break;
+				case Key.I:
+					ToggleInspector();
+					break;
+				case Key.F when GameFileLoader.IsLoaded:
+					_searchBox.Focus();
+					_searchBox.SelectAll();
+					break;
+				case Key.C when _inspectorView.IsKeyboardFocusWithin && !IsEditingControl(e.Source):
+					_ = _inspectorView.CopySelectionAsync();
+					break;
+				default:
+					return;
+			}
 			e.Handled = true;
 			return;
 		}
-		if (ctrl && e.Key == Key.E)
-		{
-			ToggleExportMenu();
-			e.Handled = true;
-			return;
-		}
-		if (ctrl && e.Key == Key.I)
-		{
-			ToggleInspector();
-			e.Handled = true;
-			return;
-		}
-		if (ctrl && e.Key == Key.F && GameFileLoader.IsLoaded)
-		{
-			_searchBox.Focus();
-			_searchBox.SelectAll();
-			e.Handled = true;
-			return;
-		}
-		if (alt && e.Key == Key.Home)
+		if (modifiers == KeyModifiers.Alt && e.Key == Key.Home)
 		{
 			GoHome();
 			e.Handled = true;
 			return;
 		}
-		if (alt && e.Key == Key.Left)
+		if (modifiers == KeyModifiers.Alt && e.Key == Key.Left)
 		{
 			GoBack();
 			e.Handled = true;
 			return;
 		}
-
-		// Don't hijack navigation keys while typing inside a TextBox
-		if (FocusManager?.GetFocusedElement() is TextBox)
+		if (!plain || IsEditingControl(e.Source) || _showExportMenu || _pathContextOverlay.IsVisible)
 		{
 			return;
 		}
-
 		if (e.Key == Key.Space && _showInspector && _selectedLeaf is not null)
 		{
 			_inspectorView.ToggleAudioPlayback();
 			e.Handled = true;
 			return;
 		}
-
-		if (_columns.Count == 0)
+		if (!_stripScroll.IsKeyboardFocusWithin || _columns.Count == 0 || _loading || _exporting)
 		{
 			return;
 		}
-
 		switch (e.Key)
 		{
 			case Key.Up:
 				_columns[_activeColumn].MoveSelection(-1);
-				e.Handled = true;
 				break;
 			case Key.Down:
 				_columns[_activeColumn].MoveSelection(1);
-				e.Handled = true;
 				break;
 			case Key.Left:
 				GoBack();
-				e.Handled = true;
 				break;
 			case Key.Right:
 			case Key.Enter:
-				if (_activeColumn + 1 < _columns.Count && _columns[_activeColumn + 1].ItemCount > 0)
-				{
-					SetActiveColumn(_activeColumn + 1);
-					_columns[_activeColumn].SelectIndex(0, raiseEvent: true);
-					e.Handled = true;
-				}
+				EnterColumn();
 				break;
+			default:
+				return;
 		}
+		e.Handled = true;
 	}
 
 	#endregion
