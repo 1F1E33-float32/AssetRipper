@@ -46,18 +46,21 @@ jobs:
           name: AssetRipper_${{ matrix.config.name }}
           path: |
             ./artifacts/publish/${{ matrix.config.executable }}
+            ./artifacts/publish/testcli*
             ./artifacts/publish/*.dll
             ./artifacts/publish/*.json
             ./artifacts/publish/*.so
             ./artifacts/publish/*.dylib
             ./artifacts/publish/compile_time.txt
+            ./artifacts/publish/plugins/**
+            ./artifacts/publish/runtimes/**
           if-no-files-found: error
     
       - name: Create Archive (tar)
         if: ${{ matrix.config.archive == 'tar' }}
         shell: bash
         working-directory: ./artifacts/publish
-        run: tar cvJf "AssetRipper_${{ matrix.config.name }}.tar.xz" "${{ matrix.config.executable }}" compile_time.txt $(ls *.{dll,json,so,dylib} 2>/dev/null)
+        run: tar cvJf "AssetRipper_${{ matrix.config.name }}.tar.xz" "${{ matrix.config.executable }}" testcli compile_time.txt plugins runtimes $(ls *.{dll,json,so,dylib} 2>/dev/null)
       
       - name: Upload Archive (tar)
         if: ${{ matrix.config.archive == 'tar' }}

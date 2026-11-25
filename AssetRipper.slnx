@@ -31,10 +31,10 @@
   <Folder Name="/Solution Items/Licenses/">
     <File Path="Source/Licenses/AsmResolver.md" />
     <File Path="Source/Licenses/AssetStudio.md" />
-    <File Path="Source/Licenses/Cpp2IL.md" />
     <File Path="Source/Licenses/Crunch.md" />
     <File Path="Source/Licenses/Fmod5Sharp.md" />
     <File Path="Source/Licenses/ILSpy.md" />
+    <File Path="Source/Licenses/Il2CppInspector.md" />
     <File Path="Source/Licenses/Lz4.md" />
     <File Path="Source/Licenses/NAudio.md" />
     <File Path="Source/Licenses/NAudioVorbis.md" />
@@ -60,6 +60,17 @@
     <File Path=".github/workflows/greetings.yml" />
     <File Path=".github/workflows/publish.yml" />
     <File Path=".github/workflows/test.yml" />
+  </Folder>
+  <Folder Name="/Source/Plugins/">
+    <Project Path="Source/Plugins/AssetRipper.GamePlugins.ABC/AssetRipper.GamePlugins.ABC.csproj" />
+    <Project Path="Source/Plugins/AssetRipper.Il2CppInspector.Plugin.ABC_CN_Windows_0.75.2/AssetRipper.Il2CppInspector.Plugin.ABC_CN_Windows_0.75.2.csproj" />
+  </Folder>
+  <Folder Name="/Source/Il2CppInspector/">
+    <Project Path="Source/AssetRipper.Il2CppInspector/AssetRipper.Il2CppInspector.csproj" />
+    <Project Path="Source/AssetRipper.Il2CppInspector/Common/Bin2Object/AssetRipper.Il2CppInspector.Bin2Object.csproj" />
+    <Project Path="Source/AssetRipper.Il2CppInspector/Common/Il2CppInspector.Common/AssetRipper.Il2CppInspector.Core.csproj" />
+    <Project Path="Source/AssetRipper.Il2CppInspector/Common/VersionedSerialization/AssetRipper.Il2CppInspector.VersionedSerialization.csproj" />
+    <Project Path="Source/AssetRipper.Il2CppInspector/Common/VersionedSerialization.Generator/AssetRipper.Il2CppInspector.VersionedSerialization.Generator.csproj" />
   </Folder>
   <Project Path="Source/AssetRipper.AssemblyDumper.Downloader/AssetRipper.AssemblyDumper.Downloader.csproj" />
   <Project Path="Source/AssetRipper.AssemblyDumper.NativeEnumExtractor/AssetRipper.AssemblyDumper.NativeEnumExtractor.csproj" />
@@ -106,6 +117,7 @@
   <Project Path="Source/AssetRipper.Tools.MonoBehaviourTester/AssetRipper.Tools.MonoBehaviourTester.csproj" />
   <Project Path="Source/AssetRipper.Tools.RawTextureExtractor/AssetRipper.Tools.RawTextureExtractor.csproj" />
   <Project Path="Source/AssetRipper.Tools.SystemTester/AssetRipper.Tools.SystemTester.csproj" />
+  <Project Path="Source/AssetRipper.Tools.TestCli/AssetRipper.Tools.TestCli.csproj" />
   <Project Path="Source/AssetRipper.Tools.TypeTreeExtractor/AssetRipper.Tools.TypeTreeExtractor.csproj" />
   <Project Path="Source/AssetRipper.Yaml.Tests/AssetRipper.Yaml.Tests.csproj" />
   <Project Path="Source/AssetRipper.Yaml/AssetRipper.Yaml.csproj" />

@@ -1,32 +1,68 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<IsAotCompatible>false</IsAotCompatible>
+		<_GamePluginAdditionalProperties Condition="'$(RuntimeIdentifier)' != ''">RuntimeIdentifier=$(RuntimeIdentifier)</_GamePluginAdditionalProperties>
+		<IsPublishable>true</IsPublishable>
+		<AssemblyName>AssetRipper</AssemblyName>
+		<BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+		<ApplicationManifest>app.manifest</ApplicationManifest>
+		<ServerGarbageCollection>true</ServerGarbageCollection>
+	</PropertyGroup>
 
-  <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <IsPublishable>true</IsPublishable>
-    <AssemblyName>AssetRipper</AssemblyName>
-    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ServerGarbageCollection>true</ServerGarbageCollection>
-  </PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)' == 'Release'">
+		<DebuggerSupport>false</DebuggerSupport>
+	</PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-    <DebuggerSupport>false</DebuggerSupport>
-  </PropertyGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\AssetRipper.GUI.Avalonia\AssetRipper.GUI.Avalonia.csproj" />
+		<ProjectReference Include="../AssetRipper.Tools.TestCli/AssetRipper.Tools.TestCli.csproj" ReferenceOutputAssembly="false" Private="false" />
+		<GamePluginProjects Include="../Plugins/*/*.csproj" />
+		<ProjectReference
+			Include="@(GamePluginProjects)"
+			ReferenceOutputAssembly="false"
+			Private="false"
+			AdditionalProperties="$(_GamePluginAdditionalProperties)"
+		/>
+	</ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\AssetRipper.GUI.Avalonia\AssetRipper.GUI.Avalonia.csproj" />
-  </ItemGroup>
+	<Target Name="PreparePublishBundle" BeforeTargets="PrepareForPublish">
+		<PropertyGroup>
+			<_PublishArtifactsRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(ArtifactsPath)'))</_PublishArtifactsRoot>
+			<_PublishBundleDirectory>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(PublishDir)'))</_PublishBundleDirectory>
+		</PropertyGroup>
+		<!-- Publishing replaces the bundle, including files left by a different configuration or RID. -->
+		<RemoveDir
+			Directories="$(_PublishBundleDirectory)"
+			Condition="$([System.String]::Copy('$(_PublishBundleDirectory)').StartsWith('$(_PublishArtifactsRoot)', System.StringComparison.OrdinalIgnoreCase)) and '$(_PublishBundleDirectory)' != '$(_PublishArtifactsRoot)'"
+		/>
+	</Target>
 
-  <Target Name="PreparePublishBundle" BeforeTargets="PrepareForPublish">
-    <PropertyGroup>
-      <_PublishArtifactsRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(ArtifactsPath)'))</_PublishArtifactsRoot>
-      <_PublishBundleDirectory>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(PublishDir)'))</_PublishBundleDirectory>
-    </PropertyGroup>
-    <!-- Publishing replaces the bundle, including files left by a different configuration or RID. -->
-    <RemoveDir
-      Directories="$(_PublishBundleDirectory)"
-      Condition="$([System.String]::Copy('$(_PublishBundleDirectory)').StartsWith('$(_PublishArtifactsRoot)', System.StringComparison.OrdinalIgnoreCase)) and '$(_PublishBundleDirectory)' != '$(_PublishArtifactsRoot)'"
-    />
-  </Target>
-
+	<Import Project="GamePlugins.targets" />
+	<Target Name="CollectTestCliFiles" DependsOnTargets="ResolveProjectReferences">
+		<MSBuild
+			Projects="../AssetRipper.Tools.TestCli/AssetRipper.Tools.TestCli.csproj"
+			Targets="GetTestCliOutput"
+			Properties="$(_GamePluginAdditionalProperties)"
+		>
+			<Output TaskParameter="TargetOutputs" ItemName="_TestCliFiles" />
+		</MSBuild>
+	</Target>
+	<Target Name="IncludeTestCli" BeforeTargets="GetCopyToOutputDirectoryItems" DependsOnTargets="CollectTestCliFiles">
+		<ItemGroup>
+			<ContentWithTargetPath Include="@(_TestCliFiles)">
+				<TargetPath>%(Filename)%(Extension)</TargetPath>
+				<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+				<CopyToPublishDirectory>Never</CopyToPublishDirectory>
+			</ContentWithTargetPath>
+		</ItemGroup>
+	</Target>
+	<Target Name="PublishTestCli" AfterTargets="ComputeFilesToPublish" DependsOnTargets="CollectTestCliFiles">
+		<ItemGroup>
+			<ResolvedFileToPublish Include="@(_TestCliFiles)">
+				<RelativePath>%(Filename)%(Extension)</RelativePath>
+				<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+			</ResolvedFileToPublish>
+		</ItemGroup>
+	</Target>
 </Project>

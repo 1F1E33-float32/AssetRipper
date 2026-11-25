@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<AssemblyName>testcli</AssemblyName>
+		<IsAotCompatible>false</IsAotCompatible>
+		<_GamePluginAdditionalProperties Condition="'$(RuntimeIdentifier)' != ''">RuntimeIdentifier=$(RuntimeIdentifier)</_GamePluginAdditionalProperties>
+	</PropertyGroup>
+	<ItemGroup>
+		<ProjectReference Include="../AssetRipper.Import/AssetRipper.Import.csproj" />
+		<GamePluginProjects Include="../Plugins/*/*.csproj" />
+		<ProjectReference
+			Include="@(GamePluginProjects)"
+			ReferenceOutputAssembly="false"
+			Private="false"
+			AdditionalProperties="$(_GamePluginAdditionalProperties)"
+		/>
+	</ItemGroup>
+	<Import Project="../AssetRipper.GUI.Free/GamePlugins.targets" />
+	<Target Name="GetTestCliOutput" Returns="@(TestCliOutput)">
+		<ItemGroup>
+			<TestCliOutput Include="$(TargetDir)$(TargetName).*" />
+			<TestCliOutput Include="$(TargetDir)$(TargetName)" Condition="Exists('$(TargetDir)$(TargetName)')" />
+		</ItemGroup>
+	</Target>
+</Project>
