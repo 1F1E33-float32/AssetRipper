@@ -1,7 +1,9 @@
+using System.Xml.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Media;
+using Avalonia.Platform;
 
 namespace AssetRipper.GUI.Avalonia.Theme;
 
@@ -32,7 +34,7 @@ internal enum IconKind
 	ZoomOut,
 	Search,
 
-	// Semantic file/asset types (matching vnlens-gui/src/icons.rs)
+	// Semantic file and asset types
 	Folder,
 	Archive,
 	Image,
@@ -49,14 +51,54 @@ internal enum IconKind
 	Document,
 	Data,
 	File,
+
+	// Unity object glyphs have matching SVG resources in Assets/Icons/Unity.
+	GameObject,
+	Transform,
+	RectTransform,
+	Mesh,
+	MeshRenderer,
+	SkinnedMeshRenderer,
+	Material,
+	Shader,
+	Texture,
+	Cubemap,
+	TextureArray,
+	RenderTexture,
+	Sprite,
+	SpriteAtlas,
+	Camera,
+	Light,
+	LightProbe,
+	ReflectionProbe,
+	AnimationClip,
+	Animator,
+	Avatar,
+	ParticleSystem,
+	TrailRenderer,
+	LineRenderer,
+	AudioSource,
+	AudioMixer,
+	Collider,
+	Rigidbody,
+	Joint,
+	Terrain,
+	NavMesh,
+	Canvas,
+	MonoBehaviour,
+	AssetBundle,
+	Scene,
+	LODGroup,
+	Prefab,
+	PhysicsMaterial,
+	Component,
 }
 
 /// <summary>
-/// Crisp vector glyphs ported 1:1 from vnlens-gui/assets/icons/*.svg and vnlens-gui/src/icons.rs.
+/// Shared vector glyphs for controls, files, and Unity objects.
 /// </summary>
 internal static class Icons
 {
-	// Exact semantic icon colors from vnlens-gui/src/icons.rs
 	public static readonly ISolidColorBrush FolderColor = new SolidColorBrush(Color.Parse("#58A6F6"));
 	public static readonly ISolidColorBrush ArchiveColor = new SolidColorBrush(Color.Parse("#E5B567"));
 	public static readonly ISolidColorBrush ImageColor = new SolidColorBrush(Color.Parse("#7ECF9C"));
@@ -77,73 +119,96 @@ internal static class Icons
 	private static readonly Dictionary<IconKind, Geometry> StrokeGeometries = new();
 	private static readonly Dictionary<IconKind, Geometry> FillGeometries = new();
 
-	public static ISolidColorBrush GetSemanticBrush(IconKind kind) => kind switch
-	{
-		IconKind.Folder => FolderColor,
-		IconKind.Archive => ArchiveColor,
-		IconKind.Image => ImageColor,
-		IconKind.Model => ModelColor,
-		IconKind.Audio => AudioColor,
-		IconKind.Video => VideoColor,
-		IconKind.Script => ScriptColor,
-		IconKind.Text => TextColor,
-		IconKind.Config => ConfigColor,
-		IconKind.Code => CodeColor,
-		IconKind.Application => ApplicationColor,
-		IconKind.Library => LibraryColor,
-		IconKind.Font => FontColor,
-		IconKind.Document => DocumentColor,
-		IconKind.Data => DataColor,
-		IconKind.Alert => Palette.Danger,
-		IconKind.Check => Palette.Success,
-		_ => FileColor,
-	};
+	public static ISolidColorBrush GetSemanticBrush(IconKind kind) =>
+		kind switch
+		{
+			IconKind.Folder => FolderColor,
+			IconKind.Archive => ArchiveColor,
+			IconKind.Image => ImageColor,
+			IconKind.Model => ModelColor,
+			IconKind.Audio => AudioColor,
+			IconKind.Video => VideoColor,
+			IconKind.Script => ScriptColor,
+			IconKind.Text => TextColor,
+			IconKind.Config => ConfigColor,
+			IconKind.Code => CodeColor,
+			IconKind.Application => ApplicationColor,
+			IconKind.Library => LibraryColor,
+			IconKind.Font => FontColor,
+			IconKind.Document => DocumentColor,
+			IconKind.Data => DataColor,
+			IconKind.Alert => Palette.Danger,
+			IconKind.Check => Palette.Success,
+			IconKind.GameObject or IconKind.Prefab or IconKind.Scene => ApplicationColor,
+			IconKind.Transform or IconKind.RectTransform or IconKind.Shader or IconKind.NavMesh => CodeColor,
+			IconKind.Mesh or IconKind.MeshRenderer or IconKind.SkinnedMeshRenderer or IconKind.LODGroup => ModelColor,
+			IconKind.Material or IconKind.ReflectionProbe or IconKind.Animator or IconKind.AnimationClip or IconKind.Avatar => VideoColor,
+			IconKind.Texture
+			or IconKind.TextureArray
+			or IconKind.Cubemap
+			or IconKind.RenderTexture
+			or IconKind.Sprite
+			or IconKind.SpriteAtlas
+			or IconKind.Terrain => ImageColor,
+			IconKind.Camera or IconKind.Canvas => ApplicationColor,
+			IconKind.Light or IconKind.LightProbe or IconKind.ParticleSystem or IconKind.TrailRenderer or IconKind.LineRenderer => ArchiveColor,
+			IconKind.AudioSource or IconKind.AudioMixer => AudioColor,
+			IconKind.Collider or IconKind.Rigidbody or IconKind.Joint or IconKind.PhysicsMaterial => DocumentColor,
+			IconKind.MonoBehaviour => ScriptColor,
+			IconKind.AssetBundle => ArchiveColor,
+			IconKind.Component => LibraryColor,
+			_ => FileColor,
+		};
 
 	public static Control Glyph(IconKind kind, double size, IBrush brush)
 	{
 		(double viewBox, double strokeWidth, bool filled) = GetMetrics(kind);
-		Canvas canvas = new()
-		{
-			Width = viewBox,
-			Height = viewBox,
-		};
+		Canvas canvas = new() { Width = viewBox, Height = viewBox };
 
 		if (filled)
 		{
 			Geometry fillGeom = GetOrCreateFillGeometry(kind);
-			canvas.Children.Add(new global::Avalonia.Controls.Shapes.Path
-			{
-				Data = fillGeom,
-				Fill = brush,
-				Stroke = brush,
-				StrokeThickness = strokeWidth,
-				StrokeLineCap = PenLineCap.Round,
-				StrokeJoin = PenLineJoin.Round,
-			});
+			canvas.Children.Add(
+				new global::Avalonia.Controls.Shapes.Path
+				{
+					Data = fillGeom,
+					Fill = brush,
+					Stroke = brush,
+					StrokeThickness = strokeWidth,
+					StrokeLineCap = PenLineCap.Round,
+					StrokeJoin = PenLineJoin.Round,
+				}
+			);
 		}
 		else
 		{
 			Geometry strokeGeom = GetOrCreateStrokeGeometry(kind);
-			canvas.Children.Add(new global::Avalonia.Controls.Shapes.Path
-			{
-				Data = strokeGeom,
-				Stroke = brush,
-				StrokeThickness = strokeWidth,
-				StrokeLineCap = PenLineCap.Round,
-				StrokeJoin = PenLineJoin.Round,
-			});
+			canvas.Children.Add(
+				new global::Avalonia.Controls.Shapes.Path
+				{
+					Data = strokeGeom,
+					Stroke = brush,
+					StrokeThickness = strokeWidth,
+					StrokeLineCap = PenLineCap.Round,
+					StrokeJoin = PenLineJoin.Round,
+				}
+			);
 
 			if (kind == IconKind.Settings)
 			{
-				// Settings teeth use stroke-width="2.5" in vnlens-gui/assets/icons/settings.svg
-				canvas.Children.Add(new global::Avalonia.Controls.Shapes.Path
-				{
-					Data = Geometry.Parse("M10 2v2m0 12v2M2 10h2m12 0h2M4.34 4.34l1.42 1.42m8.48 8.48 1.42 1.42M4.34 15.66l1.42-1.42m8.48-8.48 1.42-1.42"),
-					Stroke = brush,
-					StrokeThickness = 2.5,
-					StrokeLineCap = PenLineCap.Round,
-					StrokeJoin = PenLineJoin.Round,
-				});
+				// Settings gear teeth require a heavier 2.5px stroke.
+				canvas.Children.Add(
+					new global::Avalonia.Controls.Shapes.Path
+					{
+						Data = Geometry.Parse(
+							"M10 2v2m0 12v2M2 10h2m12 0h2M4.34 4.34l1.42 1.42m8.48 8.48 1.42 1.42M4.34 15.66l1.42-1.42m8.48-8.48 1.42-1.42"
+						),
+						Stroke = brush,
+						StrokeThickness = 2.5,
+						StrokeLineCap = PenLineCap.Round,
+						StrokeJoin = PenLineJoin.Round,
+					}
+				);
 			}
 		}
 
@@ -163,15 +228,16 @@ internal static class Icons
 		return Glyph(kind, size, brush);
 	}
 
-	private static (double ViewBox, double StrokeWidth, bool Filled) GetMetrics(IconKind kind) => kind switch
-	{
-		IconKind.WindowMinimize or IconKind.WindowMaximize or IconKind.WindowRestore or IconKind.WindowClose => (12.0, 1.0, false),
-		IconKind.Model => (24.0, 1.7, false),
-		IconKind.Dataset => (24.0, 1.8, false),
-		IconKind.Spinner => (20.0, 2.0, false),
-		IconKind.Play or IconKind.Pause => (20.0, 1.5, true),
-		_ => (20.0, 1.5, false),
-	};
+	private static (double ViewBox, double StrokeWidth, bool Filled) GetMetrics(IconKind kind) =>
+		kind switch
+		{
+			IconKind.WindowMinimize or IconKind.WindowMaximize or IconKind.WindowRestore or IconKind.WindowClose => (12.0, 1.0, false),
+			IconKind.Model => (24.0, 1.7, false),
+			IconKind.Dataset => (24.0, 1.8, false),
+			IconKind.Spinner => (20.0, 2.0, false),
+			IconKind.Play or IconKind.Pause => (20.0, 1.5, true),
+			_ => (20.0, 1.5, false),
+		};
 
 	private static Geometry GetOrCreateFillGeometry(IconKind kind)
 	{
@@ -199,6 +265,20 @@ internal static class Icons
 		GeometryGroup group = new();
 		switch (kind)
 		{
+			case >= IconKind.GameObject and <= IconKind.Component:
+				// These SVGs use only paths, a 20x20 viewBox, and the shared 1.5px rounded stroke.
+				// Apply the caller's brush so selection and disabled colors also work for SVG glyphs.
+				using (Stream stream = AssetLoader.Open(new Uri($"avares://AssetRipper.GUI.Avalonia/Assets/Icons/Unity/{kind}.svg")))
+				{
+					XElement svg = XElement.Load(stream);
+					foreach (XElement path in svg.Elements(XName.Get("path", "http://www.w3.org/2000/svg")))
+					{
+						group.Children.Add(
+							Geometry.Parse((string?)path.Attribute("d") ?? throw new InvalidDataException($"SVG path is missing in {kind}."))
+						);
+					}
+				}
+				break;
 			case IconKind.WindowClose:
 				group.Children.Add(Geometry.Parse("m1.5 1.5 9 9m-9 0 9-9"));
 				break;

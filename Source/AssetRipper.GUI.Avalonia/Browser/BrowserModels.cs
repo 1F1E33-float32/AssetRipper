@@ -8,21 +8,8 @@ using AssetRipper.Import.GamePlugins;
 using AssetRipper.IO.Files;
 using AssetRipper.IO.Files.ResourceFiles;
 using AssetRipper.Processing.Textures;
-using AssetRipper.SourceGenerated.Classes.ClassID_1;
-using AssetRipper.SourceGenerated.Classes.ClassID_114;
-using AssetRipper.SourceGenerated.Classes.ClassID_115;
-using AssetRipper.SourceGenerated.Classes.ClassID_128;
-using AssetRipper.SourceGenerated.Classes.ClassID_156;
+using AssetRipper.SourceGenerated;
 using AssetRipper.SourceGenerated.Classes.ClassID_189;
-using AssetRipper.SourceGenerated.Classes.ClassID_21;
-using AssetRipper.SourceGenerated.Classes.ClassID_213;
-using AssetRipper.SourceGenerated.Classes.ClassID_28;
-using AssetRipper.SourceGenerated.Classes.ClassID_329;
-using AssetRipper.SourceGenerated.Classes.ClassID_4;
-using AssetRipper.SourceGenerated.Classes.ClassID_43;
-using AssetRipper.SourceGenerated.Classes.ClassID_48;
-using AssetRipper.SourceGenerated.Classes.ClassID_49;
-using AssetRipper.SourceGenerated.Classes.ClassID_83;
 
 namespace AssetRipper.GUI.Avalonia.Browser;
 
@@ -56,47 +43,153 @@ internal sealed class BrowserItem
 
 	public static IconKind ClassifyAssetIcon(IUnityObjectBase asset)
 	{
-		if (asset is IImageTexture or SpriteInformationObject or ISprite or ITerrainData)
+		if (asset is SpriteInformationObject)
 		{
-			return IconKind.Image;
+			return IconKind.Sprite;
 		}
-		if (asset is IMesh)
+		// Class IDs also cover objects read directly from a type tree without generated interfaces.
+		return (ClassIDType)asset.ClassID switch
 		{
-			return IconKind.Model;
-		}
-		if (asset is IAudioClip)
-		{
-			return IconKind.Audio;
-		}
-		if (asset is IVideoClip)
-		{
-			return IconKind.Video;
-		}
-		if (asset is IMonoScript or IMonoBehaviour)
-		{
-			return IconKind.Script;
-		}
-		if (asset is IShader)
-		{
-			return IconKind.Code;
-		}
-		if (asset is ITextAsset)
-		{
-			return IconKind.Text;
-		}
-		if (asset is IFont)
-		{
-			return IconKind.Font;
-		}
-		if (asset is IMaterial)
-		{
-			return IconKind.Config;
-		}
-		if (asset is IGameObject or ITransform)
-		{
-			return IconKind.Application;
-		}
-		return IconKind.File;
+			ClassIDType.GameObject => IconKind.GameObject,
+			ClassIDType.Transform => IconKind.Transform,
+			ClassIDType.RectTransform => IconKind.RectTransform,
+			ClassIDType.Component or ClassIDType.Behaviour => IconKind.Component,
+			ClassIDType.Mesh or ClassIDType.MeshFilter => IconKind.Mesh,
+			ClassIDType.Renderer or ClassIDType.MeshRenderer or ClassIDType.BillboardRenderer or ClassIDType.BillboardAsset => IconKind.MeshRenderer,
+			ClassIDType.SkinnedMeshRenderer or ClassIDType.ClothRenderer or ClassIDType.Cloth or ClassIDType.SkinnedCloth =>
+				IconKind.SkinnedMeshRenderer,
+			ClassIDType.Material or ClassIDType.ProceduralMaterial => IconKind.Material,
+			ClassIDType.Shader or ClassIDType.ComputeShader or ClassIDType.RayTracingShader or ClassIDType.ShaderVariantCollection => IconKind.Shader,
+			ClassIDType.ShaderInclude or ClassIDType.TextAsset => IconKind.Text,
+			ClassIDType.Texture or ClassIDType.Texture2D or ClassIDType.ImageTexture or ClassIDType.SparseTexture or ClassIDType.ProceduralTexture =>
+				IconKind.Texture,
+			ClassIDType.Cubemap or ClassIDType.CubemapArray => IconKind.Cubemap,
+			ClassIDType.Texture3D or ClassIDType.Texture2DArray => IconKind.TextureArray,
+			ClassIDType.RenderTexture or ClassIDType.CustomRenderTexture => IconKind.RenderTexture,
+			ClassIDType.Sprite or ClassIDType.SpriteRenderer or ClassIDType.SpriteMask or ClassIDType.SpriteShapeRenderer => IconKind.Sprite,
+			ClassIDType.SpriteAtlas or ClassIDType.SpriteAtlasAsset or ClassIDType.CachedSpriteAtlas => IconKind.SpriteAtlas,
+			ClassIDType.Camera or ClassIDType.ScriptableCamera => IconKind.Camera,
+			ClassIDType.Light or ClassIDType.Flare or ClassIDType.LensFlare or ClassIDType.Projector or ClassIDType.Halo => IconKind.Light,
+			ClassIDType.LightProbeGroup or ClassIDType.LightProbes_197 or ClassIDType.LightProbes_258 or ClassIDType.LightProbeProxyVolume =>
+				IconKind.LightProbe,
+			ClassIDType.ReflectionProbe => IconKind.ReflectionProbe,
+			ClassIDType.AnimationClip or ClassIDType.PreviewAnimationClip or ClassIDType.Animation or ClassIDType.Motion => IconKind.AnimationClip,
+			ClassIDType.Animator
+			or ClassIDType.AnimatorController
+			or ClassIDType.RuntimeAnimatorController
+			or ClassIDType.AnimatorOverrideController
+			or ClassIDType.AnimatorState
+			or ClassIDType.AnimatorStateMachine
+			or ClassIDType.AnimatorStateTransition
+			or ClassIDType.AnimatorTransition
+			or ClassIDType.AnimatorTransitionBase
+			or ClassIDType.BlendTree
+			or ClassIDType.PlayableDirector => IconKind.Animator,
+			ClassIDType.Avatar or ClassIDType.AvatarMask_319 or ClassIDType.AvatarMask_1011 or ClassIDType.AvatarSkeletonMask => IconKind.Avatar,
+			ClassIDType.ParticleSystem
+			or ClassIDType.ParticleSystemRenderer
+			or ClassIDType.ParticleSystemForceField
+			or ClassIDType.ParticleEmitter
+			or ClassIDType.ParticleRenderer
+			or ClassIDType.ParticleAnimator
+			or ClassIDType.MeshParticleEmitter
+			or ClassIDType.EllipsoidParticleEmitter
+			or ClassIDType.VisualEffect
+			or ClassIDType.VisualEffectAsset
+			or ClassIDType.VisualEffectResource
+			or ClassIDType.VFXRenderer => IconKind.ParticleSystem,
+			ClassIDType.TrailRenderer => IconKind.TrailRenderer,
+			ClassIDType.LineRenderer => IconKind.LineRenderer,
+			ClassIDType.AudioClip or ClassIDType.AudioResource => IconKind.Audio,
+			ClassIDType.AudioSource or ClassIDType.AudioListener or ClassIDType.AudioReverbZone => IconKind.AudioSource,
+			ClassIDType.AudioMixer
+			or ClassIDType.AudioMixerController
+			or ClassIDType.AudioMixerGroup
+			or ClassIDType.AudioMixerGroupController
+			or ClassIDType.AudioMixerSnapshot
+			or ClassIDType.AudioMixerSnapshotController
+			or ClassIDType.AudioMixerEffectController
+			or ClassIDType.AudioFilter
+			or ClassIDType.AudioReverbFilter
+			or ClassIDType.AudioHighPassFilter
+			or ClassIDType.AudioLowPassFilter
+			or ClassIDType.AudioChorusFilter
+			or ClassIDType.AudioEchoFilter
+			or ClassIDType.AudioDistortionFilter => IconKind.AudioMixer,
+			ClassIDType.Collider
+			or ClassIDType.Collider2D
+			or ClassIDType.BoxCollider
+			or ClassIDType.SphereCollider
+			or ClassIDType.CapsuleCollider
+			or ClassIDType.MeshCollider
+			or ClassIDType.TerrainCollider
+			or ClassIDType.WheelCollider
+			or ClassIDType.CharacterController
+			or ClassIDType.BoxCollider2D
+			or ClassIDType.CircleCollider2D
+			or ClassIDType.CapsuleCollider2D
+			or ClassIDType.PolygonCollider2D
+			or ClassIDType.EdgeCollider2D
+			or ClassIDType.CompositeCollider2D
+			or ClassIDType.TilemapCollider2D
+			or ClassIDType.CustomCollider2D => IconKind.Collider,
+			ClassIDType.Rigidbody
+			or ClassIDType.Rigidbody2D
+			or ClassIDType.ArticulationBody
+			or ClassIDType.ConstantForce
+			or ClassIDType.ConstantForce2D => IconKind.Rigidbody,
+			ClassIDType.Joint
+			or ClassIDType.Joint2D
+			or ClassIDType.HingeJoint
+			or ClassIDType.FixedJoint
+			or ClassIDType.SpringJoint
+			or ClassIDType.CharacterJoint
+			or ClassIDType.ConfigurableJoint
+			or ClassIDType.AnchoredJoint2D
+			or ClassIDType.SpringJoint2D
+			or ClassIDType.DistanceJoint2D
+			or ClassIDType.HingeJoint2D
+			or ClassIDType.SliderJoint2D
+			or ClassIDType.WheelJoint2D
+			or ClassIDType.RelativeJoint2D
+			or ClassIDType.FixedJoint2D
+			or ClassIDType.FrictionJoint2D
+			or ClassIDType.TargetJoint2D => IconKind.Joint,
+			ClassIDType.PhysicsMaterial or ClassIDType.PhysicsMaterial2D => IconKind.PhysicsMaterial,
+			ClassIDType.Terrain or ClassIDType.TerrainData or ClassIDType.TerrainLayer or ClassIDType.Tree or ClassIDType.SpeedTreeWindAsset =>
+				IconKind.Terrain,
+			ClassIDType.NavMeshData_194
+			or ClassIDType.NavMeshData_238
+			or ClassIDType.NavMeshAgent
+			or ClassIDType.NavMeshObstacle
+			or ClassIDType.OffMeshLink => IconKind.NavMesh,
+			ClassIDType.Canvas or ClassIDType.CanvasRenderer or ClassIDType.CanvasGroup or ClassIDType.UIRenderer or ClassIDType.PanelRenderer =>
+				IconKind.Canvas,
+			ClassIDType.MonoBehaviour => IconKind.MonoBehaviour,
+			ClassIDType.MonoScript => IconKind.Script,
+			ClassIDType.Font or ClassIDType.TextMesh or ClassIDType.GUIText => IconKind.Font,
+			ClassIDType.VideoClip_327
+			or ClassIDType.VideoClip_329
+			or ClassIDType.VideoPlayer
+			or ClassIDType.MovieTexture
+			or ClassIDType.WebCamTexture => IconKind.Video,
+			ClassIDType.AssetBundle or ClassIDType.AssetBundleManifest => IconKind.AssetBundle,
+			ClassIDType.SceneAsset or ClassIDType.SceneRoots => IconKind.Scene,
+			ClassIDType.Prefab or ClassIDType.PrefabInstance => IconKind.Prefab,
+			ClassIDType.LODGroup or ClassIDType.SortingGroup => IconKind.LODGroup,
+			ClassIDType.RenderSettings
+			or ClassIDType.LightmapSettings
+			or ClassIDType.LightingSettings
+			or ClassIDType.LightmapParameters
+			or ClassIDType.OcclusionCullingSettings
+			or ClassIDType.NavMeshSettings
+			or ClassIDType.GraphicsSettings
+			or ClassIDType.QualitySettings
+			or ClassIDType.PhysicsManager
+			or ClassIDType.Physics2DSettings
+			or ClassIDType.AudioManager => IconKind.Config,
+			_ => asset is IImageTexture ? IconKind.Texture : IconKind.File,
+		};
 	}
 
 	public static string GetKindLabel(BrowserItem item) =>
@@ -339,7 +432,7 @@ internal static class BrowserFolderBuilder
 				{
 					Name = scene.Name,
 					Kind = BrowserItemKind.Scene,
-					Icon = IconKind.Document,
+					Icon = IconKind.Scene,
 					IsContainer = true,
 					Target = scene,
 					Meta = scene.Collections.Count.ToString(),
