@@ -94,7 +94,7 @@ public sealed class GameStructure : IDisposable
 		AssemblyManager = scriptBackend switch
 		{
 			ScriptingBackend.Mono => new MonoManager(OnRequestAssembly),
-			ScriptingBackend.IL2Cpp => new IL2CppManager(OnRequestAssembly, configuration.ImportSettings.ScriptContentLevel),
+			ScriptingBackend.IL2Cpp => new IL2CppManager(OnRequestAssembly),
 			_ => new BaseManager(OnRequestAssembly),
 		};
 
@@ -109,6 +109,7 @@ public sealed class GameStructure : IDisposable
 		{
 			Logger.Error(LogCategory.Import, "Could not initialize assembly manager. Switching to the 'Unknown' scripting backend.");
 			Logger.Error(ex);
+			AssemblyManager.Dispose();
 			AssemblyManager = new BaseManager(OnRequestAssembly);
 		}
 	}

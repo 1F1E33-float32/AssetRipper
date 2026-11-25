@@ -1,0 +1,8 @@
+<Project>
+  <Import Project="../../Directory.Build.props" />
+  <PropertyGroup>
+    <IsAotCompatible>false</IsAotCompatible>
+    <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
+    <PackageLicenseExpression>AGPL-3.0-only</PackageLicenseExpression>
+  </PropertyGroup>
+</Project>

@@ -6,7 +6,8 @@ public abstract class FileLoggerBase : ILogger
 {
 	protected readonly string filePath;
 
-	public FileLoggerBase() : this(Path.Join(LocalFileSystem.ExecutingDirectory, "AssetRipper.log")) { }
+	public FileLoggerBase()
+		: this(Path.Join(LocalFileSystem.ExecutingDirectory, "log", "AssetRipper.log")) { }
 
 	/// <param name="filePath">The absolute path to the log file</param>
 	public FileLoggerBase(string filePath)
@@ -16,7 +17,11 @@ public abstract class FileLoggerBase : ILogger
 			throw new ArgumentException("Invalid path", nameof(filePath));
 		}
 
-		this.filePath = filePath;
+		this.filePath = Path.GetFullPath(filePath);
+		if (Path.GetDirectoryName(this.filePath) is string directory)
+		{
+			Directory.CreateDirectory(directory);
+		}
 
 		File.Create(this.filePath).Close();
 	}

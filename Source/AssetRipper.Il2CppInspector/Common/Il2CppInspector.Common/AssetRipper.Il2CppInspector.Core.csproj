@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <Compile Include="../../IO/*.cs" />
+    <PackageReference Include="K4os.Compression.LZ4" Version="1.3.8" />
+    <ProjectReference Include="../Bin2Object/AssetRipper.Il2CppInspector.Bin2Object.csproj" />
+    <ProjectReference Include="../VersionedSerialization/AssetRipper.Il2CppInspector.VersionedSerialization.csproj" />
+    <ProjectReference
+      Include="../VersionedSerialization.Generator/AssetRipper.Il2CppInspector.VersionedSerialization.Generator.csproj"
+      ReferenceOutputAssembly="false"
+      OutputItemType="Analyzer"
+    />
+    <InternalsVisibleTo Include="AssetRipper.Il2CppInspector" />
+    <InternalsVisibleTo Include="AssetRipper.Il2CppInspector.Plugin.ABC_CN_Windows_0.75.2" />
+  </ItemGroup>
+</Project>

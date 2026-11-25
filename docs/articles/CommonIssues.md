@@ -26,7 +26,7 @@ If it didn't work, there will be this line:
 Import : Files use the 'Unknown' scripting backend.
 ```
 
-For IL2Cpp games, use [Cpp2IL](https://github.com/SamboyCoding/Cpp2IL) to generate assemblies. [Il2CppInterop assemblies](https://github.com/BepInEx/Il2CppInterop) used in modding will not work.
+For IL2CPP games, AssetRipper uses its in-process Il2CppInspector reader to build the managed type model used for field serialization. [Il2CppInterop assemblies](https://github.com/BepInEx/Il2CppInterop) used in modding will not work.
 
 ## Duplicate Assemblies
 

@@ -10,22 +10,9 @@ public static class Logger
 
 	public static event Action<string, object?> OnStatusChanged = (_, _) => { };
 
-	static Logger()
-	{
-		Cpp2IL.Core.Logging.Logger.InfoLog += (message, source) => LogCpp2IL(LogType.Info, message);
-		Cpp2IL.Core.Logging.Logger.WarningLog += (message, source) => LogCpp2IL(LogType.Verbose, message);
-		Cpp2IL.Core.Logging.Logger.ErrorLog += (message, source) => LogCpp2IL(LogType.Error, message);
-		Cpp2IL.Core.Logging.Logger.VerboseLog += (message, source) => LogCpp2IL(LogType.Verbose, message);
-	}
-
-	private static void LogCpp2IL(LogType logType, string message)
-	{
-		Log(logType, LogCategory.Cpp2IL, message.Trim());
-	}
-
 	public static void Log(LogType type, LogCategory category, string message)
 	{
-		if (AssetRipperRuntimeInformation.Build.Debug && type == LogType.Debug)
+		if (!AssetRipperRuntimeInformation.Build.Debug && type == LogType.Debug)
 		{
 			return;
 		}

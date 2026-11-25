@@ -1,0 +1,430 @@
+/*
+	Copyright 2017-2021 Katy Coe - http://www.djkaty.com - https://github.com/djkaty
+
+	All rights reserved.
+*/
+using System.Collections.Immutable;
+using AssetRipper.Il2CppInspector.Bin2Object;
+using AssetRipper.Il2CppInspector.Next;
+using AssetRipper.Il2CppInspector.Next.BinaryMetadata;
+using AssetRipper.Il2CppInspector.Next.Metadata;
+using AssetRipper.Il2CppInspector.Utils;
+using AssetRipper.Il2CppInspector.VersionedSerialization;
+
+namespace AssetRipper.Il2CppInspector;
+
+// Il2CppInspector ties together the binary and metadata files into a congruent API surface
+public partial class Il2CppInspector
+{
+	public Il2CppBinary Binary { get; }
+	public Metadata Metadata { get; }
+
+	// All function pointers including attribute initialization functions etc. (start => end)
+	public Dictionary<ulong, ulong> FunctionAddresses { get; }
+
+	// Attribute indexes (>=24.1) arranged by customAttributeStart and token
+	public Dictionary<int, Dictionary<uint, int>> AttributeIndicesByToken { get; } = [];
+
+	// Merged list of all metadata usage references
+	public List<MetadataUsage> MetadataUsages { get; }
+
+	// Shortcuts
+	public StructVersion Version => Metadata.Version > Binary.Image.Version ? Metadata.Version : Binary.Image.Version;
+	public Dictionary<int, string> Strings => Metadata.Strings;
+	public string[] StringLiterals => Metadata.StringLiterals;
+	public ImmutableArray<Il2CppTypeDefinition> TypeDefinitions => Metadata.Types;
+	public ImmutableArray<Il2CppAssemblyDefinition> Assemblies => Metadata.Assemblies;
+	public ImmutableArray<Il2CppImageDefinition> Images => Metadata.Images;
+	public ImmutableArray<Il2CppMethodDefinition> Methods => Metadata.Methods;
+	public ImmutableArray<Il2CppParameterDefinition> Params => Metadata.Params;
+	public ImmutableArray<Il2CppFieldDefinition> Fields => Metadata.Fields;
+	public ImmutableArray<Il2CppPropertyDefinition> Properties => Metadata.Properties;
+	public ImmutableArray<Il2CppEventDefinition> Events => Metadata.Events;
+	public ImmutableArray<Il2CppGenericContainer> GenericContainers => Metadata.GenericContainers;
+	public ImmutableArray<Il2CppGenericParameter> GenericParameters => Metadata.GenericParameters;
+	public ImmutableArray<TypeIndex> GenericConstraintIndices => Metadata.GenericConstraintIndices;
+	public ImmutableArray<Il2CppCustomAttributeTypeRange> AttributeTypeRanges => Metadata.AttributeTypeRanges;
+	public ImmutableArray<Il2CppCustomAttributeDataRange> AttributeDataRanges => Metadata.AttributeDataRanges;
+	public ImmutableArray<Il2CppInterfaceOffsetPair> InterfaceOffsets => Metadata.InterfaceOffsets;
+	public ImmutableArray<TypeIndex> InterfaceUsageIndices => Metadata.InterfaceUsageIndices;
+	public ImmutableArray<int> NestedTypeIndices => Metadata.NestedTypeIndices;
+	public ImmutableArray<int> AttributeTypeIndices => Metadata.AttributeTypeIndices;
+	public ImmutableArray<uint> VTableMethodIndices => Metadata.VTableMethodIndices;
+	public ImmutableArray<Il2CppFieldRef> FieldRefs => Metadata.FieldRefs;
+	public Dictionary<int, byte[]> AssemblyPublicKeys => Metadata.AssemblyPublicKeys;
+	public Dictionary<int, (ulong, object?)> FieldDefaultValue { get; } = [];
+	public Dictionary<int, (ulong, object?)> ParameterDefaultValue { get; } = [];
+	public List<long> FieldOffsets { get; }
+	public ImmutableArray<Il2CppType> TypeReferences => Binary.TypeReferences;
+	public Dictionary<ulong, int> TypeReferenceIndicesByAddress => Binary.TypeReferenceIndicesByAddress;
+	public ImmutableArray<Il2CppGenericInst> GenericInstances => Binary.GenericInstances;
+	public Dictionary<string, Il2CppCodeGenModule> Modules => Binary.Modules;
+	public ulong[] CustomAttributeGenerators { get; }
+	public ulong[] MethodInvokePointers { get; }
+	public ImmutableArray<Il2CppMethodSpec> MethodSpecs => Binary.MethodSpecs;
+	public Dictionary<Il2CppMethodSpec, ulong> GenericMethodPointers { get; }
+	public Dictionary<Il2CppMethodSpec, int> GenericMethodInvokerIndices => Binary.GenericMethodInvokerIndices;
+	public ImmutableArray<Il2CppTypeDefinitionSizes> TypeDefinitionSizes => Binary.TypeDefinitionSizes;
+	public Dictionary<TypeIndex, int> TypeInlineArrays { get; } = [];
+
+	// TODO: Finish all file access in the constructor and eliminate the need for this
+	public IFileFormatStream BinaryImage => Binary.Image;
+
+	private (ulong MetadataAddress, object? Value) GetDefaultValue(int typeIndex, int dataIndex)
+	{
+		if (Metadata.HasGameAdapter)
+		{
+			return Metadata.GameAdapter.DecodeDefault(typeIndex, dataIndex, Binary);
+		}
+
+		// No default
+		if (dataIndex == -1)
+		{
+			return (0ul, null);
+		}
+
+		// Get pointer in binary to default value
+		int pValue = Metadata.FieldAndParameterDefaultValueDataOffset + dataIndex;
+		Il2CppType typeRef = TypeReferences[typeIndex];
+		// Default value is null
+		if (pValue == 0)
+		{
+			return (0ul, null);
+		}
+
+		Metadata.Position = pValue;
+		object? value = BlobReader.GetConstantValueFromBlob(this, typeRef.Type, Metadata);
+		return ((ulong)pValue, value);
+	}
+
+	private List<MetadataUsage> BuildMetadataUsages()
+	{
+		if (Metadata.HasGameAdapter)
+		{
+			return Metadata.GameAdapter.Usages;
+		}
+
+		// No metadata usages for versions < 19
+		if (Version < MetadataVersions.V190)
+		{
+			return [];
+		}
+
+		// Metadata usages are lazily initialized during runtime for versions >= 27
+		if (Version >= MetadataVersions.V270)
+		{
+			return BuildLateBindingMetadataUsages();
+		}
+
+		// Version >= 19 && < 27
+		Dictionary<uint, uint> usages = [];
+		foreach (Il2CppMetadataUsageList metadataUsageList in Metadata.MetadataUsageLists)
+		{
+			for (int i = 0; i < metadataUsageList.Count; i++)
+			{
+				BinaryImage.CancellationToken.ThrowIfCancellationRequested();
+				Il2CppMetadataUsagePair metadataUsagePair = Metadata.MetadataUsagePairs[metadataUsageList.Start + i];
+				usages.TryAdd(metadataUsagePair.DestinationIndex, metadataUsagePair.EncodedSourceIndex);
+			}
+		}
+
+		// Metadata usages (addresses)
+		// Unfortunately the value supplied in MetadataRegistration.matadataUsagesCount seems to be incorrect,
+		// so we have to calculate the correct number of usages above before reading the usage address list from the binary
+		uint count = usages.Count == 0 ? 0 : usages.Keys.Max() + 1;
+		ulong[] addresses = Binary.Image.ReadMappedUWordArray(Binary.MetadataRegistration.MetadataUsages, (int)count);
+		List<MetadataUsage> metadataUsages = [];
+		foreach ((uint index, uint encodedUsage) in usages)
+		{
+			metadataUsages.Add(MetadataUsage.FromEncodedIndex(this, encodedUsage, addresses[index]));
+		}
+
+		return metadataUsages;
+	}
+
+	private List<MetadataUsage> BuildLateBindingMetadataUsages()
+	{
+		// plagiarism. noun - https://www.lexico.com/en/definition/plagiarism
+		//   the practice of taking someone else's work or ideas and passing them off as one's own.
+		// Synonyms: copying, piracy, theft, strealing, infringement of copyright
+		ulong[] words = BinaryImage.ReadArray<ulong>(0, (int)BinaryImage.Length / (BinaryImage.Bits / 8));
+		List<MetadataUsage> usages = [];
+		for (uint i = 0; i < words.Length; i++)
+		{
+			BinaryImage.CancellationToken.ThrowIfCancellationRequested();
+			ulong metadataValue = words[i];
+			if (metadataValue < uint.MaxValue)
+			{
+				uint encodedToken = (uint)metadataValue;
+				MetadataUsage usage = MetadataUsage.FromEncodedIndex(this, encodedToken);
+				if (CheckMetadataUsageSanity(usage) && BinaryImage.TryMapFileOffsetToVA(i * ((uint)BinaryImage.Bits / 8), out ulong va))
+				{
+					usages.Add(MetadataUsage.FromEncodedIndex(this, encodedToken, va));
+				}
+			}
+		}
+
+		return usages;
+		bool CheckMetadataUsageSanity(MetadataUsage usage)
+		{
+			return usage.Type switch
+			{
+				MetadataUsageType.TypeInfo or MetadataUsageType.Type => TypeReferences.Length > usage.SourceIndex,
+				MetadataUsageType.MethodDef => Methods.Length > usage.SourceIndex,
+				MetadataUsageType.FieldInfo or MetadataUsageType.FieldRva => FieldRefs.Length > usage.SourceIndex,
+				MetadataUsageType.StringLiteral => StringLiterals.Length > usage.SourceIndex,
+				MetadataUsageType.MethodRef => MethodSpecs.Length > usage.SourceIndex,
+				_ => false,
+			};
+		}
+	}
+
+	// Thumb instruction pointers have the bottom bit set to signify a switch from ARM to Thumb when jumping
+	private ulong GetDecodedAddress(ulong addr)
+	{
+		if (BinaryImage.Arch != "ARM" && BinaryImage.Arch != "ARM64")
+		{
+			return addr;
+		}
+
+		return addr & 0xffff_ffff_ffff_fffe;
+	}
+
+	public Il2CppInspector(Il2CppBinary binary, Metadata metadata)
+	{
+		// Store stream representations
+		Binary = binary;
+		Metadata = metadata;
+		// Get all field default values
+		foreach (Il2CppFieldDefaultValue fdv in Metadata.FieldDefaultValues)
+		{
+			BinaryImage.CancellationToken.ThrowIfCancellationRequested();
+			// Later metadata versions (seen in v106) use -1 for the last entry, which is not used.
+			if (fdv.FieldIndex == -1 && fdv.TypeIndex == -1)
+			{
+				continue;
+			}
+
+			FieldDefaultValue.Add(fdv.FieldIndex, GetDefaultValue(fdv.TypeIndex, fdv.DataIndex));
+		}
+
+		// Get all parameter default values
+		foreach (Il2CppParameterDefaultValue pdv in Metadata.ParameterDefaultValues)
+		{
+			BinaryImage.CancellationToken.ThrowIfCancellationRequested();
+			ParameterDefaultValue.Add(pdv.ParameterIndex, GetDefaultValue(pdv.TypeIndex, pdv.DataIndex));
+		}
+
+		// Get all field offsets
+		if (!Binary.FieldOffsets.IsDefault)
+		{
+			FieldOffsets = [.. Binary.FieldOffsets.Select(x => (long)x)];
+		}
+		// Convert pointer list into fields
+		else
+		{
+			Dictionary<int, long> offsets = [];
+			for (int i = 0; i < TypeDefinitions.Length; i++)
+			{
+				Il2CppTypeDefinition def = TypeDefinitions[i];
+				long pFieldOffsets = Binary.FieldOffsetPointers[i];
+				if (pFieldOffsets != 0)
+				{
+					// If the target address range is not mapped in the file, assume zeroes
+					if (BinaryImage.TryMapVATR((ulong)pFieldOffsets, out uint fieldOffsetPosition))
+					{
+						BinaryImage.Position = fieldOffsetPosition;
+						uint[] fieldOffsets = BinaryImage.ReadArray<uint>(def.FieldCount);
+						for (int fieldIndex = 0; fieldIndex < def.FieldCount; fieldIndex++)
+						{
+							BinaryImage.CancellationToken.ThrowIfCancellationRequested();
+							offsets.Add(def.FieldIndex + fieldIndex, fieldOffsets[fieldIndex]);
+						}
+					}
+					else
+					{
+						for (int fieldIndex = 0; fieldIndex < def.FieldCount; fieldIndex++)
+						{
+							BinaryImage.CancellationToken.ThrowIfCancellationRequested();
+							offsets.Add(def.FieldIndex + fieldIndex, 0);
+						}
+					}
+				}
+			}
+
+			FieldOffsets = [.. offsets.OrderBy(x => x.Key).Select(x => x.Value)];
+		}
+
+		// Build list of custom attribute generators
+		if (Version < MetadataVersions.V270)
+		{
+			CustomAttributeGenerators = Binary.CustomAttributeGenerators;
+		}
+		else if (Version < MetadataVersions.V290)
+		{
+			long cagCount = Images.Sum(i => i.CustomAttributeCount);
+			CustomAttributeGenerators = new ulong[cagCount];
+			foreach (Il2CppImageDefinition image in Images)
+			{
+				BinaryImage.CancellationToken.ThrowIfCancellationRequested();
+				// Get CodeGenModule for this image
+				Il2CppCodeGenModule codeGenModule = Binary.Modules[Strings[image.NameIndex]];
+				long[] cags = BinaryImage.ReadMappedWordArray(codeGenModule.CustomAttributeCacheGenerator, (int)image.CustomAttributeCount);
+				cags.CopyTo(CustomAttributeGenerators, image.CustomAttributeStart);
+			}
+		}
+		else
+		{
+			CustomAttributeGenerators = [];
+		}
+
+		// Decode addresses for Thumb etc. without altering the Il2CppBinary structure data
+		CustomAttributeGenerators = [.. CustomAttributeGenerators.Select(GetDecodedAddress)];
+		MethodInvokePointers = [.. Binary.MethodInvokePointers.Select(GetDecodedAddress)];
+		GenericMethodPointers = Binary.GenericMethodPointers.ToDictionary(a => a.Key, a => GetDecodedAddress(a.Value));
+		// Get sorted list of function pointers from all sources
+		// TODO: This does not include IL2CPP API functions
+		List<ulong>? sortedFunctionPointers =
+			(Version <= MetadataVersions.V241)
+				? [.. Binary.GlobalMethodPointers.Select(GetDecodedAddress)]
+				: [.. Binary.ModuleMethodPointers.SelectMany(module => module.Value).Select(GetDecodedAddress)];
+		sortedFunctionPointers.AddRange(CustomAttributeGenerators);
+		sortedFunctionPointers.AddRange(MethodInvokePointers);
+		sortedFunctionPointers.AddRange(GenericMethodPointers.Values);
+		sortedFunctionPointers.Sort();
+		sortedFunctionPointers = [.. sortedFunctionPointers.Distinct()];
+		// Guestimate function end addresses
+		FunctionAddresses = new Dictionary<ulong, ulong>(sortedFunctionPointers.Count);
+		for (int i = 0; i < sortedFunctionPointers.Count - 1; i++)
+		{
+			BinaryImage.CancellationToken.ThrowIfCancellationRequested();
+			FunctionAddresses.Add(sortedFunctionPointers[i], sortedFunctionPointers[i + 1]);
+		}
+
+		// The last method end pointer will be incorrect but there is no way of calculating it
+		if (sortedFunctionPointers.Count > 0)
+		{
+			FunctionAddresses.Add(sortedFunctionPointers[^1], sortedFunctionPointers[^1]);
+		}
+
+		// Organize custom attribute indices
+		if (Version >= MetadataVersions.V241)
+		{
+			AttributeIndicesByToken = [];
+			foreach (Il2CppImageDefinition image in Images)
+			{
+				Dictionary<uint, int> attsByToken = [];
+				for (int i = 0; i < image.CustomAttributeCount; i++)
+				{
+					BinaryImage.CancellationToken.ThrowIfCancellationRequested();
+					int index = image.CustomAttributeStart + i;
+					uint token = Version >= MetadataVersions.V290 ? AttributeDataRanges[index].Token : AttributeTypeRanges[index].Token;
+					attsByToken.Add(token, index);
+				}
+
+				if (attsByToken.Count > 0)
+				{
+					AttributeIndicesByToken.Add(image.CustomAttributeStart, attsByToken);
+				}
+			}
+		}
+
+		if (Version >= MetadataVersions.V1040)
+		{
+			TypeInlineArrays = Metadata.TypeInlineArrays.ToDictionary(x => x.TypeIndex, x => x.Length);
+		}
+
+		// Merge all metadata usage references into a single distinct list
+		MetadataUsages = BuildMetadataUsages();
+	}
+
+	// Get a method pointer if available
+	public (ulong Start, ulong End)? GetMethodPointer(Il2CppCodeGenModule module, Il2CppMethodDefinition methodDef)
+	{
+		// Find method pointer
+		if (methodDef.MethodIndex < 0)
+		{
+			return null;
+		}
+
+		ulong start = 0;
+		// Global method pointer array
+		if (Version <= MetadataVersions.V241)
+		{
+			start = Binary.GlobalMethodPointers[methodDef.MethodIndex];
+		}
+
+		// Per-module method pointer array uses the bottom 24 bits of the method's metadata token
+		// Derived from il2cpp::vm::MetadataCache::GetMethodPointer
+		if (Version >= MetadataVersions.V242)
+		{
+			uint method = (methodDef.Token & 0xffffff);
+			if (method == 0)
+			{
+				return null;
+			}
+
+			// In the event of an exception, the method pointer is not set in the file
+			// This probably means it has been optimized away by the compiler, or is an unused generic method
+			try
+			{
+				start = Binary.ModuleMethodPointers[module][method - 1];
+			}
+			catch (IndexOutOfRangeException)
+			{
+				return null;
+			}
+		}
+
+		if (start == 0)
+		{
+			return null;
+		}
+
+		// Consider the end of the method to be the start of the next method (or zero)
+		// The last method end will be wrong but there is no way to calculate it
+		start = GetDecodedAddress(start);
+		return (start, FunctionAddresses[start]);
+	}
+
+	// Get a concrete generic method pointer if available
+	public (ulong Start, ulong End)? GetGenericMethodPointer(Il2CppMethodSpec spec)
+	{
+		if (GenericMethodPointers.TryGetValue(spec, out ulong start))
+		{
+			return (start, FunctionAddresses[start]);
+		}
+
+		return null;
+	}
+
+	// Get a method invoker index from a method definition
+	public int GetInvokerIndex(Il2CppCodeGenModule module, Il2CppMethodDefinition methodDef)
+	{
+		if (Version <= MetadataVersions.V241)
+		{
+			return methodDef.InvokerIndex;
+		}
+
+		// Version >= 24.2
+		uint methodInModule = (methodDef.Token & 0xffffff);
+		return Binary.MethodInvokerIndices[module][(int)methodInModule - 1];
+	}
+
+	public MetadataUsage[] GetVTable(Il2CppTypeDefinition definition)
+	{
+		MetadataUsage[] res = new MetadataUsage[definition.VTableCount];
+		for (int i = 0; i < definition.VTableCount; i++)
+		{
+			BinaryImage.CancellationToken.ThrowIfCancellationRequested();
+			uint encodedIndex = VTableMethodIndices[definition.VTableIndex + i];
+			MetadataUsage usage = MetadataUsage.FromEncodedIndex(this, encodedIndex);
+			if (usage.IsValid)
+			{
+				res[i] = usage;
+			}
+		}
+
+		return res;
+	}
+}

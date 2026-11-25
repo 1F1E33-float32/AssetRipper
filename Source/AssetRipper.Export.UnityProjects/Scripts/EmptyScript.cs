@@ -69,11 +69,11 @@ public static class EmptyScript
 					
 							AssetRipper was set to not load any script information.
 					
-						6. Cpp2IL failed to decompile Il2Cpp data
+						6. IL2CPP metadata could not be decoded
 					
 							If this happened, there will be errors in the AssetRipper.log indicating that it happened.
 							This is an upstream problem, and the AssetRipper developer has very little control over it.
-							Please post a GitHub issue at: https://github.com/SamboyCoding/Cpp2IL/issues
+							Please post a GitHub issue with the game version and import log.
 				
 						7. An incorrect path was provided to AssetRipper.
 				
@@ -140,11 +140,11 @@ public static class EmptyScript
 
 							AssetRipper was set to not load any script information.
 
-						6. Cpp2IL failed to decompile Il2Cpp data
+						6. IL2CPP metadata could not be decoded
 
 							If this happened, there will be errors in the AssetRipper.log indicating that it happened.
 							This is an upstream problem, and the AssetRipper developer has very little control over it.
-							Please post a GitHub issue at: https://github.com/SamboyCoding/Cpp2IL/issues
+							Please post a GitHub issue with the game version and import log.
 
 						7. An incorrect path was provided to AssetRipper.
 

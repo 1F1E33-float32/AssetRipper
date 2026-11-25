@@ -1,0 +1,202 @@
+/*
+	Copyright 2017-2021 Katy Coe - http://www.djkaty.com - https://github.com/djkaty
+
+	All rights reserved.
+*/
+using System.Reflection;
+using System.Text;
+using AssetRipper.Il2CppInspector.Next.Metadata;
+
+namespace AssetRipper.Il2CppInspector.Reflection;
+
+public class FieldInfo : MemberInfo // L-TODO: Add support for [ThreadLocal] fields
+{
+	public override TypeInfo DeclaringType => base.DeclaringType ?? throw new InvalidOperationException("Member has no declaring type.");
+
+	// IL2CPP-specific data
+	private readonly int _definitionIndex = -1;
+	public Il2CppFieldDefinition Definition => _definitionIndex < 0 ? default : Assembly.Model.Package.Fields[_definitionIndex];
+	public int Index { get; }
+
+	// Root definition: the field with Definition != null
+	protected readonly FieldInfo _rootDefinition;
+
+	// Offsets for reference types start at 0x8 or 0x10 due to Il2CppObject "header" containing 2 pointers
+	// Value types don't have this header but the offsets are still stored as starting at 0x8 or 0x10, so we have to subtract this
+	// Open generic types have offsets that aren't known until runtime
+	private readonly long _rawOffset;
+	public long Offset =>
+		DeclaringType.ContainsGenericParameters
+			? 0
+			: _rawOffset - (DeclaringType.IsValueType && !IsStatic ? (Assembly.Model.Package.BinaryImage.Bits / 8) * 2 : 0);
+	public bool HasFieldRVA => (Attributes & FieldAttributes.HasFieldRVA) != 0;
+	public ulong DefaultValueMetadataAddress { get; }
+	public bool IsThreadStatic { get; }
+
+	// Game adapters may select storage outside klass->static_fields.
+	public int StorageTag => Assembly.Model.Package.Metadata.GameAdapter?.FieldStorageTag(this) ?? 0;
+
+	// Custom attributes for this member
+	public override IEnumerable<CustomAttributeData> CustomAttributes => CustomAttributeData.GetCustomAttributes(_rootDefinition);
+	public bool HasDefaultValue => (Attributes & FieldAttributes.HasDefault) != 0;
+	public object? DefaultValue { get; }
+
+	public string GetDefaultValueString(Scope? usingScope = null) => HasDefaultValue ? DefaultValue.ToCSharpValue(FieldType, usingScope) : "";
+
+	// Information/flags about the field
+	public FieldAttributes Attributes { get; }
+
+	// Type of field
+	private readonly TypeRef _fieldTypeReference;
+	public TypeInfo FieldType => _fieldTypeReference.Value;
+
+	// For the Is* definitions below, see:
+	// https://docs.microsoft.com/en-us/dotnet/api/system.reflection.fieldinfo.isfamilyandassembly?view=netframework-4.7.1#System_Reflection_FieldInfo_IsFamilyAndAssembly
+	// True if the field is declared as internal
+	public bool IsAssembly => (Attributes & FieldAttributes.FieldAccessMask) == FieldAttributes.Assembly;
+
+	// True if the field is declared as protected
+	public bool IsFamily => (Attributes & FieldAttributes.FieldAccessMask) == FieldAttributes.Family;
+
+	// True if the field is declared as 'protected private' (always false)
+	public bool IsFamilyAndAssembly => (Attributes & FieldAttributes.FieldAccessMask) == FieldAttributes.FamANDAssem;
+
+	// True if the field is declared as protected public
+	public bool IsFamilyOrAssembly => (Attributes & FieldAttributes.FieldAccessMask) == FieldAttributes.FamORAssem;
+
+	// True if the field is declared as readonly
+	public bool IsInitOnly => (Attributes & FieldAttributes.InitOnly) == FieldAttributes.InitOnly;
+
+	// True if the field is const
+	public bool IsLiteral => (Attributes & FieldAttributes.Literal) == FieldAttributes.Literal;
+
+	// True if the field has the NonSerialized attribute
+	public bool IsNotSerialized => (Attributes & (FieldAttributes)0x80) == (FieldAttributes)0x80;
+
+	// True if the field is extern
+	public bool IsPinvokeImpl => (Attributes & FieldAttributes.PinvokeImpl) == FieldAttributes.PinvokeImpl;
+
+	// True if the field is declared a private
+	public bool IsPrivate => (Attributes & FieldAttributes.FieldAccessMask) == FieldAttributes.Private;
+
+	// True if the field is declared as public
+	public bool IsPublic => (Attributes & FieldAttributes.FieldAccessMask) == FieldAttributes.Public;
+
+	// True if the field has a special name
+	public bool IsSpecialName => (Attributes & FieldAttributes.SpecialName) == FieldAttributes.SpecialName;
+
+	// True if the field is declared as static
+	public bool IsStatic => (Attributes & FieldAttributes.Static) == FieldAttributes.Static;
+
+	// Returns true if using this field requires that the using method is declared as unsafe
+	public bool RequiresUnsafeContext =>
+		FieldType.RequiresUnsafeContext || GetCustomAttributes("System.Runtime.CompilerServices.FixedBufferAttribute").Any();
+	public override MemberTypes MemberType => MemberTypes.Field;
+
+	public FieldInfo(Il2CppInspector pkg, int fieldIndex, TypeInfo declaringType)
+		: base(declaringType)
+	{
+		_definitionIndex = fieldIndex;
+		MetadataToken = (int)Definition.Token;
+		Index = fieldIndex;
+		Name = pkg.Strings[Definition.NameIndex];
+		_rawOffset = pkg.FieldOffsets[fieldIndex];
+		if ((_rawOffset & 0x80000000) != 0)
+		{
+			IsThreadStatic = true;
+			_rawOffset &= ~0x80000000;
+		}
+
+		_rootDefinition = this;
+		_fieldTypeReference = TypeRef.FromReferenceIndex(Assembly.Model, Definition.TypeIndex);
+		Next.BinaryMetadata.Il2CppType fieldType = pkg.TypeReferences[Definition.TypeIndex];
+		// Copy attributes
+		Attributes = (FieldAttributes)fieldType.Attrs;
+		// Default initialization value if present
+		if (pkg.FieldDefaultValue.TryGetValue(fieldIndex, out (ulong address, object? variant) value))
+		{
+			DefaultValue = value.variant;
+			DefaultValueMetadataAddress = value.address;
+		}
+	}
+
+	public FieldInfo(FieldInfo fieldDef, TypeInfo declaringType)
+		: base(declaringType)
+	{
+		if (!fieldDef.Definition.IsValid)
+		{
+			throw new ArgumentException("Argument must be a bare field definition");
+		}
+
+		_rootDefinition = fieldDef;
+		Index = fieldDef.Index;
+		_rawOffset = declaringType.GameLayoutGroup is int group
+			? (
+				Assembly.Model.Package.Metadata.GameAdapter ?? throw new InvalidDataException("IL2CPP field layout has no metadata adapter.")
+			).LayoutFieldOffset(group, Index - (int)declaringType.GetGenericTypeDefinition().Definition.FieldIndex)
+			: fieldDef._rawOffset;
+		Name = fieldDef.Name;
+		Attributes = fieldDef.Attributes;
+		IsThreadStatic = fieldDef.IsThreadStatic;
+		if (Assembly.Model.Package.Metadata.HasGameAdapter && declaringType.GameLayoutGroup.HasValue)
+		{
+			IsThreadStatic = (_rawOffset & 0x80000000) != 0;
+			if (IsThreadStatic)
+			{
+				_rawOffset &= ~0x80000000;
+			}
+		}
+
+		_fieldTypeReference = TypeRef.FromTypeInfo(fieldDef.FieldType.SubstituteGenericArguments(declaringType.GetGenericArguments()));
+		DefaultValue = fieldDef.DefaultValue;
+		DefaultValueMetadataAddress = fieldDef.DefaultValueMetadataAddress;
+	}
+
+	public string GetAccessModifierString() =>
+		this switch
+		{
+			{ IsPrivate: true } => "private ",
+			{ IsPublic: true } => "public ",
+			{ IsFamily: true } => "protected ",
+			{ IsAssembly: true } => "internal ",
+			{ IsFamilyOrAssembly: true } => "protected internal ",
+			{ IsFamilyAndAssembly: true } => "private protected ",
+			_ => "",
+		};
+
+	public string GetModifierString()
+	{
+		StringBuilder modifiers = new(GetAccessModifierString());
+		if (IsLiteral)
+		{
+			modifiers.Append("const ");
+		}
+		// All const fields are also static by implication
+		else if (IsStatic)
+		{
+			modifiers.Append("static ");
+		}
+
+		if (IsInitOnly)
+		{
+			modifiers.Append("readonly ");
+		}
+
+		if (RequiresUnsafeContext)
+		{
+			modifiers.Append("unsafe ");
+		}
+
+		if (IsPinvokeImpl)
+		{
+			modifiers.Append("extern ");
+		}
+
+		if (GetCustomAttributes("System.Runtime.CompilerServices.FixedBufferAttribute").Any())
+		{
+			modifiers.Append("fixed ");
+		}
+
+		return modifiers.ToString();
+	}
+}

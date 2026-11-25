@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>AssetRipper.Il2CppInspector</AssemblyName>
+    <RootNamespace>AssetRipper.Il2CppInspector</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="*.cs" />
+    <ProjectReference Include="Common/Il2CppInspector.Common/AssetRipper.Il2CppInspector.Core.csproj" />
+  </ItemGroup>
+</Project>

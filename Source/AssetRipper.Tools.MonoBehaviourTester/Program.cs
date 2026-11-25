@@ -1,4 +1,3 @@
-﻿using AssetRipper.Import.Configuration;
 using AssetRipper.Import.Logging;
 using AssetRipper.Import.Platforms;
 using AssetRipper.Import.Structure.Assembly;
@@ -48,7 +47,7 @@ internal static class Program
 		AssemblyManager = backend switch
 		{
 			ScriptingBackend.Mono => new MonoManager(OnRequestAssembly),
-			ScriptingBackend.IL2Cpp => new IL2CppManager(OnRequestAssembly, ScriptContentLevel.Level2),
+			ScriptingBackend.IL2Cpp => new IL2CppManager(OnRequestAssembly),
 			_ => new BaseManager(OnRequestAssembly),
 		};
 
@@ -81,7 +80,14 @@ internal static class Program
 
 		try
 		{
-			if (AssemblyManager.TryGetSerializableType(typeId, UnityVersion.MaxVersion, out SerializableType? serializableType, out string? failureReason))
+			if (
+				AssemblyManager.TryGetSerializableType(
+					typeId,
+					UnityVersion.MaxVersion,
+					out SerializableType? serializableType,
+					out string? failureReason
+				)
+			)
 			{
 				Logger.Info($"Got serializable type: {serializableType}");
 				PrintSerializationInfo(serializableType);

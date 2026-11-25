@@ -17,11 +17,6 @@ public sealed class MonoExplicitPropertyRepairProcessor : IAssetProcessor
 	public void Process(GameData gameData) => Process(gameData.AssemblyManager);
 	private static void Process(IAssemblyManager manager)
 	{
-		if (manager.ScriptingBackend == ScriptingBackend.IL2Cpp)
-		{
-			return; // For Il2Cpp, this issue is handled by Cpp2IL
-		}
-
 		manager.ClearStreamCache();
 
 		List<(PropertyDefinition InterfaceProperty, TypeSignature InterfaceType, MethodDefinition Method)> getMethodsToCreate = new();
