@@ -1,0 +1,12 @@
+<Project>
+  <Import Project="../../Directory.Build.targets" />
+  <Target Name="GetGamePluginOutput" Returns="@(GamePluginOutput)">
+    <ItemGroup>
+      <GamePluginOutput Include="$(TargetDir)**/*" />
+      <GamePluginOutput Update="@(GamePluginOutput)">
+        <PluginAssemblyFileName>$(TargetFileName)</PluginAssemblyFileName>
+        <PluginSubdirectory>%(GamePluginOutput.RecursiveDir)</PluginSubdirectory>
+      </GamePluginOutput>
+    </ItemGroup>
+  </Target>
+</Project>

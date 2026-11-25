@@ -1,0 +1,183 @@
+<Project>
+  <UsingTask TaskName="PrepareGamePluginFiles" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Files ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <ExistingPaths ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <RuntimeIdentifier ParameterType="System.String" />
+      <OutputFiles ParameterType="Microsoft.Build.Framework.ITaskItem[]" Output="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System" />
+      <Using Namespace="System.Collections.Generic" />
+      <Using Namespace="System.Reflection" />
+      <Using Namespace="Microsoft.Build.Framework" />
+      <Using Namespace="Microsoft.Build.Utilities" />
+      <Code Type="Fragment" Language="cs">
+        <![CDATA[
+        static bool IsNativeBinary(string fullPath, string extension)
+        {
+            if (
+                extension.Equals(".so", StringComparison.OrdinalIgnoreCase)
+                || extension.Equals(".dylib", StringComparison.OrdinalIgnoreCase)
+                || extension.Equals(".a", StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                return true;
+            }
+            if (!extension.Equals(".dll", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+            try
+            {
+                _ = AssemblyName.GetAssemblyName(fullPath);
+                return false;
+            }
+            catch (BadImageFormatException)
+            {
+                return true;
+            }
+        }
+
+        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+        foreach (ITaskItem existing in ExistingPaths)
+        {
+            string rel = existing.GetMetadata("RelativePath");
+            if (string.IsNullOrEmpty(rel))
+            {
+                rel = existing.GetMetadata("TargetPath");
+            }
+            if (string.IsNullOrEmpty(rel))
+            {
+                string destDir = existing.GetMetadata("DestinationSubDirectory");
+                rel = destDir + existing.GetMetadata("Filename") + existing.GetMetadata("Extension");
+            }
+            rel = rel.Replace('\\', '/').TrimStart('/');
+            if (!string.IsNullOrEmpty(rel))
+            {
+                seen.Add(rel);
+            }
+        }
+        List<ITaskItem> result = new();
+        foreach (ITaskItem item in Files)
+        {
+            string extension = item.GetMetadata("Extension");
+            string fileName = item.GetMetadata("Filename") + extension;
+            if (
+                fileName.EndsWith(".deps.json", StringComparison.OrdinalIgnoreCase)
+                || fileName.EndsWith(".runtimeconfig.json", StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                continue;
+            }
+            string subDir = item.GetMetadata("PluginSubdirectory").Replace('\\', '/').TrimStart('/');
+            string rel = subDir + fileName;
+            string targetPath;
+            if (rel.StartsWith("runtimes/", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.IsNullOrEmpty(RuntimeIdentifier))
+                {
+                    int secondSlash = rel.IndexOf('/', "runtimes/".Length);
+                    string itemRid = secondSlash > 0 ? rel.Substring("runtimes/".Length, secondSlash - "runtimes/".Length) : string.Empty;
+                    if (!string.Equals(itemRid, RuntimeIdentifier, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+                }
+                targetPath = rel;
+            }
+            else if (
+                string.Equals(rel, item.GetMetadata("PluginAssemblyFileName"), StringComparison.OrdinalIgnoreCase)
+                || (
+                    (fileName.StartsWith("AssetRipper.Il2CppInspector.Plugin.", StringComparison.OrdinalIgnoreCase) || fileName.StartsWith("AssetRipper.GamePlugins.", StringComparison.OrdinalIgnoreCase))
+                    && fileName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
+                )
+            )
+            {
+                targetPath = "plugins/" + fileName;
+            }
+            else if (!string.IsNullOrEmpty(RuntimeIdentifier) && IsNativeBinary(item.ItemSpec, extension))
+            {
+                targetPath = "runtimes/" + RuntimeIdentifier + "/native/" + fileName;
+            }
+            else
+            {
+                targetPath = rel;
+            }
+            if (seen.Add(targetPath))
+            {
+                TaskItem output = new(item);
+                output.SetMetadata("TargetPath", targetPath);
+                output.SetMetadata("RelativePath", targetPath);
+                result.Add(output);
+            }
+        }
+        OutputFiles = result.ToArray();
+      ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+  <Target Name="MoveHostRuntimeAssets" AfterTargets="ResolveLockFileCopyLocalFiles" Condition="'$(RuntimeIdentifier)' != ''">
+    <ItemGroup>
+      <ReferenceCopyLocalPaths
+        Update="@(ReferenceCopyLocalPaths)"
+        Condition="'%(ReferenceCopyLocalPaths.AssetType)' == 'native' and '%(ReferenceCopyLocalPaths.DestinationSubDirectory)' == ''"
+      >
+        <DestinationSubDirectory>runtimes/$(RuntimeIdentifier)/native/</DestinationSubDirectory>
+      </ReferenceCopyLocalPaths>
+    </ItemGroup>
+  </Target>
+  <Target Name="CollectGamePluginFiles" DependsOnTargets="ResolveProjectReferences">
+    <MSBuild
+      Projects="@(GamePluginProjects)"
+      Targets="GetGamePluginOutput"
+      BuildInParallel="true"
+      Properties="$(_GamePluginAdditionalProperties)"
+      Condition="'$(RuntimeIdentifier)' == '' or '$(NoBuild)' == 'true'"
+    >
+      <Output TaskParameter="TargetOutputs" ItemName="GamePluginFiles" />
+    </MSBuild>
+    <MSBuild
+      Projects="@(GamePluginProjects)"
+      Targets="Build;GetGamePluginOutput"
+      BuildInParallel="true"
+      Properties="$(_GamePluginAdditionalProperties)"
+      Condition="'$(RuntimeIdentifier)' != '' and '$(NoBuild)' != 'true'"
+    >
+      <Output TaskParameter="TargetOutputs" ItemName="GamePluginFiles" />
+    </MSBuild>
+  </Target>
+  <Target Name="IncludeGamePlugins" BeforeTargets="GetCopyToOutputDirectoryItems" DependsOnTargets="CollectGamePluginFiles">
+    <PrepareGamePluginFiles
+      Files="@(GamePluginFiles)"
+      ExistingPaths="@(ReferenceCopyLocalPaths);@(ContentWithTargetPath)"
+      RuntimeIdentifier="$(RuntimeIdentifier)"
+    >
+      <Output TaskParameter="OutputFiles" ItemName="_PreparedGamePluginFiles" />
+    </PrepareGamePluginFiles>
+    <ItemGroup>
+      <ContentWithTargetPath Include="@(_PreparedGamePluginFiles)">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+      </ContentWithTargetPath>
+    </ItemGroup>
+  </Target>
+  <Target Name="PublishGamePlugins" AfterTargets="ComputeFilesToPublish" DependsOnTargets="CollectGamePluginFiles">
+    <ItemGroup Condition="'$(RuntimeIdentifier)' != ''">
+      <ResolvedFileToPublish
+        Update="@(ResolvedFileToPublish)"
+        Condition="'%(ResolvedFileToPublish.AssetType)' == 'native' and !$([System.String]::Copy('%(ResolvedFileToPublish.RelativePath)').Replace('\', '/').StartsWith('runtimes/'))"
+      >
+        <RelativePath>runtimes/$(RuntimeIdentifier)/native/%(Filename)%(Extension)</RelativePath>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+    <PrepareGamePluginFiles Files="@(GamePluginFiles)" ExistingPaths="@(ResolvedFileToPublish)" RuntimeIdentifier="$(RuntimeIdentifier)">
+      <Output TaskParameter="OutputFiles" ItemName="_PublishedGamePluginFiles" />
+    </PrepareGamePluginFiles>
+    <ItemGroup>
+      <ResolvedFileToPublish Include="@(_PublishedGamePluginFiles)">
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+</Project>

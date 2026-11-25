@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<EnableDynamicLoading>true</EnableDynamicLoading>
+		<IsAotCompatible>false</IsAotCompatible>
+	</PropertyGroup>
+	<ItemGroup>
+		<EmbeddedResource Include="TypeTrees/release.ttbin" LogicalName="AssetRipper.GamePlugins.ABC.release.ttbin" />
+		<ProjectReference Include="../../AssetRipper.Import/AssetRipper.Import.csproj" />
+		<ProjectReference Include="../AssetRipper.Il2CppInspector.Plugin.ABC_CN_Windows_0.75.2/AssetRipper.Il2CppInspector.Plugin.ABC_CN_Windows_0.75.2.csproj" />
+		<PackageReference Include="OodleSharp" Version="0.0.1" />
+	</ItemGroup>
+</Project>

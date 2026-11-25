@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <IsAotCompatible>false</IsAotCompatible>
+    <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
+    <PackageLicenseExpression>AGPL-3.0-only</PackageLicenseExpression>
+    <RootNamespace>AssetRipper.Il2CppInspector.Plugin.ABC</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../AssetRipper.Il2CppInspector/AssetRipper.Il2CppInspector.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../AssetRipper.Il2CppInspector/Plugins/Shared/Morax/*.cs" Link="Shared/Morax/%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>
