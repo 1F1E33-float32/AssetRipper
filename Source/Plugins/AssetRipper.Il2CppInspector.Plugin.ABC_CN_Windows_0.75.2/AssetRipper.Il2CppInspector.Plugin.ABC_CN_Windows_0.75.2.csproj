@@ -7,9 +7,11 @@
     <RootNamespace>AssetRipper.Il2CppInspector.Plugin.ABC</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="System.IO.Hashing" Version="9.0.7" />
     <ProjectReference Include="../../AssetRipper.Il2CppInspector/AssetRipper.Il2CppInspector.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="IL2CPP/EngineNames.txt" LogicalName="AssetRipper.Il2CppInspector.Plugin.ABC.EngineNames.txt" />
     <Compile Include="../../AssetRipper.Il2CppInspector/Plugins/Shared/Morax/*.cs" Link="Shared/Morax/%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>
