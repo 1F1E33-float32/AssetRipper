@@ -17,6 +17,7 @@ public class BaseManager : IAssemblyManager
 	protected readonly Dictionary<AssemblyDefinition, Stream> m_assemblyStreams = new(SignatureComparer.Default);
 	protected readonly Dictionary<string, bool> m_validTypes = new();
 	private readonly Dictionary<FieldSerializer, Dictionary<ITypeDefOrRef, SerializableType>> monoTypeCache = new();
+	private readonly Func<FieldDefinition, TypeSignature, bool>? fieldFilter;
 
 	private event Action<string> m_requestAssemblyCallback;
 	private readonly Dictionary<string, SerializableType> m_serializableTypes = new();
@@ -30,14 +31,13 @@ public class BaseManager : IAssemblyManager
 		}
 	}
 
-	public BaseManager(Action<string> requestAssemblyCallback)
+	public BaseManager(Action<string> requestAssemblyCallback, Func<FieldDefinition, TypeSignature, bool>? scriptFieldFilter = null)
 	{
 		m_requestAssemblyCallback = requestAssemblyCallback ?? throw new ArgumentNullException(nameof(requestAssemblyCallback));
+		fieldFilter = scriptFieldFilter;
 	}
 
-	public virtual void Initialize(PlatformGameStructure gameStructure)
-	{
-	}
+	public virtual void Initialize(PlatformGameStructure gameStructure) { }
 
 	protected static string GetUniqueName(ITypeDefOrRef type)
 	{
@@ -63,9 +63,7 @@ public class BaseManager : IAssemblyManager
 		string assemblyName = ToAssemblyName(assembly);
 		m_assemblies[assemblyName] = assembly;
 
-		if (RuntimeContext is null)
-		{
-		}
+		if (RuntimeContext is null) { }
 		else if (assembly.RuntimeContext is null)
 		{
 			RuntimeContext.AddAssembly(assembly);
@@ -183,7 +181,8 @@ public class BaseManager : IAssemblyManager
 		ScriptIdentifier scriptID,
 		UnityVersion version,
 		[NotNullWhen(true)] out SerializableType? scriptType,
-		[NotNullWhen(false)] out string? failureReason)
+		[NotNullWhen(false)] out string? failureReason
+	)
 	{
 		if (m_serializableTypes.TryGetValue(scriptID.UniqueName, out scriptType))
 		{
@@ -199,15 +198,17 @@ public class BaseManager : IAssemblyManager
 		}
 		else
 		{
-			FieldSerializer fieldSerializer = new(version, RuntimeContext);
+			FieldSerializer fieldSerializer = new(version, RuntimeContext, fieldFilter);
 			if (!monoTypeCache.TryGetValue(fieldSerializer, out Dictionary<ITypeDefOrRef, SerializableType>? typeCache))
 			{
 				typeCache = new(RuntimeContext?.SignatureComparer);
 				monoTypeCache[fieldSerializer] = typeCache;
 			}
 
-			if (typeCache.TryGetValue(type, out SerializableType? monoType)
-				|| fieldSerializer.TryCreateSerializableType(type, typeCache, out monoType, out failureReason))
+			if (
+				typeCache.TryGetValue(type, out SerializableType? monoType)
+				|| fieldSerializer.TryCreateSerializableType(type, typeCache, out monoType, out failureReason)
+			)
 			{
 				scriptType = monoType;
 				failureReason = null;

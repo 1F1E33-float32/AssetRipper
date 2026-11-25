@@ -1,4 +1,5 @@
 using AsmResolver.DotNet;
+using AsmResolver.DotNet.Signatures;
 using AssetRipper.Il2CppInspector;
 using AssetRipper.Il2CppInspector.Reflection;
 using AssetRipper.Import.Logging;
@@ -8,7 +9,8 @@ using AssetRipper.IO.Files;
 namespace AssetRipper.Import.Structure.Assembly.Managers;
 
 /// <summary>Adapts decoded IL2CPP types to the managed model used by Unity field serialization.</summary>
-public sealed class IL2CppManager(Action<string> requestAssemblyCallback) : BaseManager(requestAssemblyCallback)
+public sealed class IL2CppManager(Action<string> requestAssemblyCallback, Func<FieldDefinition, TypeSignature, bool>? fieldFilter = null)
+	: BaseManager(requestAssemblyCallback, fieldFilter)
 {
 	public override ScriptingBackend ScriptingBackend => ScriptingBackend.IL2Cpp;
 

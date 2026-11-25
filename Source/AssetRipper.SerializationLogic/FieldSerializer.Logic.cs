@@ -4,13 +4,18 @@ using AssetRipper.SerializationLogic.Extensions;
 
 namespace AssetRipper.SerializationLogic;
 
-public readonly partial struct FieldSerializer(UnityVersion version, RuntimeContext? runtimeContext)
+public readonly partial struct FieldSerializer(
+	UnityVersion version,
+	RuntimeContext? runtimeContext,
+	Func<FieldDefinition, TypeSignature, bool>? fieldFilter = null
+)
 {
 	/// <summary>
 	/// Not sure about the exact version boundary, structs are supposedly only serializable on 4.5.0 and greater.
 	/// </summary>
 	private bool IsStructSerializable => version.GreaterThanOrEquals(4, 5);
 	private bool IsInt8Serializable => IsInt16Serializable;
+
 	/// <summary>
 	/// Not sure about the exact version boundary, but int8, int16, uint16, and uint32 were added around 5.0.0.
 	/// </summary>
@@ -20,6 +25,7 @@ public readonly partial struct FieldSerializer(UnityVersion version, RuntimeCont
 	private bool IsInt16Serializable => version.GreaterThanOrEquals(5);
 	private bool IsUInt32Serializable => IsInt16Serializable;
 	private bool IsCharSerializable => IsInt64Serializable;
+
 	/// <summary>
 	/// Not sure about the exact version boundary, but online references suggest that 2017 was the first version to support this.
 	/// </summary>
@@ -27,10 +33,12 @@ public readonly partial struct FieldSerializer(UnityVersion version, RuntimeCont
 	/// <see href="https://github.com/AssetRipper/AssetRipper/issues/647"/>
 	/// </remarks>
 	private bool IsInt64Serializable => version.GreaterThanOrEquals(2017);
+
 	/// <summary>
 	/// Prior to the first alpha of 2020, System.Collections.Generic.List`1 and UnityEngine.ExposedReference`1 were the only supported generic types.
 	/// </summary>
 	private bool IsGenericInstanceSerializable => version.GreaterThanOrEquals(2020);
+
 	/// <summary>
 	/// Objects referenced by [SerializeReference] fields got stable identifiers in 2021.2.0a19. Before that, an object's
 	/// identifier was its index, stored as a 32 bit integer instead of the 64 bit integer used afterwards.
@@ -52,12 +60,18 @@ public readonly partial struct FieldSerializer(UnityVersion version, RuntimeCont
 		{
 			return false;
 		}
+		if (fieldFilter?.Invoke(fieldDefinition, fieldType) == false)
+		{
+			return false;
+		}
 
 		// The field must have correct visibility/decoration to be serialized.
-		if (!fieldDefinition.IsPublic &&
-			!ShouldHaveHadAllFieldsPublic(fieldDefinition) &&
-			!fieldDefinition.HasSerializeFieldAttribute() &&
-			!fieldDefinition.HasSerializeReferenceAttribute())
+		if (
+			!fieldDefinition.IsPublic
+			&& !ShouldHaveHadAllFieldsPublic(fieldDefinition)
+			&& !fieldDefinition.HasSerializeFieldAttribute()
+			&& !fieldDefinition.HasSerializeReferenceAttribute()
+		)
 		{
 			return false;
 		}
@@ -173,7 +187,7 @@ public readonly partial struct FieldSerializer(UnityVersion version, RuntimeCont
 		}
 
 		try
-		{   // This will throw an exception if typereference thinks it's referencing a .dll,
+		{ // This will throw an exception if typereference thinks it's referencing a .dll,
 			// but actually there's .winmd file in the current directory. RRW will fix this
 			// at a later step, so we will not try to resolve this type. This is OK, as any
 			// type defined in a winmd cannot be serialized.
@@ -219,7 +233,11 @@ public readonly partial struct FieldSerializer(UnityVersion version, RuntimeCont
 			return false;
 		}
 
-		if (EngineTypePredicates.IsUnityEngineObject(fieldType, runtimeContext) || EngineTypePredicates.IsSerializableUnityClass(fieldType, runtimeContext) || ShouldImplementIDeserializable(fieldType))
+		if (
+			EngineTypePredicates.IsUnityEngineObject(fieldType, runtimeContext)
+			|| EngineTypePredicates.IsSerializableUnityClass(fieldType, runtimeContext)
+			|| ShouldImplementIDeserializable(fieldType)
+		)
 		{
 			return true;
 		}
@@ -268,8 +286,10 @@ public readonly partial struct FieldSerializer(UnityVersion version, RuntimeCont
 			return true;
 		}
 
-		if (typeDeclaration.ToTypeSignature(runtimeContext) is GenericInstanceTypeSignature genericInstanceTypeSignature
-			&& genericInstanceTypeSignature.TypeArguments.Any(t => t is GenericParameterSignature))
+		if (
+			typeDeclaration.ToTypeSignature(runtimeContext) is GenericInstanceTypeSignature genericInstanceTypeSignature
+			&& genericInstanceTypeSignature.TypeArguments.Any(t => t is GenericParameterSignature)
+		)
 		{
 			return true;
 		}
@@ -290,7 +310,13 @@ public readonly partial struct FieldSerializer(UnityVersion version, RuntimeCont
 		}
 
 		//MB and SO are not serializable
-		if (typeDeclaration is { Namespace: EngineTypePredicates.UnityEngineNamespace, Name: EngineTypePredicates.MonoBehaviour or EngineTypePredicates.ScriptableObject })
+		if (
+			typeDeclaration is
+			{
+				Namespace: EngineTypePredicates.UnityEngineNamespace,
+				Name: EngineTypePredicates.MonoBehaviour or EngineTypePredicates.ScriptableObject
+			}
+		)
 		{
 			return true;
 		}
@@ -338,6 +364,8 @@ public readonly partial struct FieldSerializer(UnityVersion version, RuntimeCont
 		}
 
 		//Reference types can be serializable, or they can be MB/SO.
-		return isSerializable || resolvedTypeDeclaration.InheritsFromMonoBehaviour(runtimeContext) || resolvedTypeDeclaration.InheritsFromScriptableObject(runtimeContext);
+		return isSerializable
+			|| resolvedTypeDeclaration.InheritsFromMonoBehaviour(runtimeContext)
+			|| resolvedTypeDeclaration.InheritsFromScriptableObject(runtimeContext);
 	}
 }
