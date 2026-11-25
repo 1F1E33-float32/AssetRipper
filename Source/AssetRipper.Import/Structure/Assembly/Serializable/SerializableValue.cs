@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Diagnostics;
 using AssetRipper.Assets;
 using AssetRipper.Assets.Cloning;
 using AssetRipper.Assets.IO.Writing;
@@ -6,8 +8,6 @@ using AssetRipper.Assets.Traversal;
 using AssetRipper.IO.Endian;
 using AssetRipper.IO.Files.SerializedFiles;
 using AssetRipper.SerializationLogic;
-using System.Collections;
-using System.Diagnostics;
 
 namespace AssetRipper.Import.Structure.Assembly.Serializable;
 
@@ -34,7 +34,7 @@ public record struct SerializableValue([property: DebuggerBrowsable(DebuggerBrow
 	public char AsChar
 	{
 		readonly get => unchecked((char)PValue);
-		set => SetPrimitive(unchecked((byte)value));
+		set => SetPrimitive((ushort)value);
 	}
 
 	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
@@ -106,8 +106,18 @@ public record struct SerializableValue([property: DebuggerBrowsable(DebuggerBrow
 	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
 	public string AsString
 	{
-		readonly get => CValue as string ?? "";
-		set => SetReference(value);
+		readonly get => CValue is Utf8String text ? text.String : CValue as string ?? "";
+		set
+		{
+			if (CValue is Utf8String)
+			{
+				CValue = value;
+			}
+			else
+			{
+				SetReference(value);
+			}
+		}
 	}
 
 	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
@@ -217,7 +227,7 @@ public record struct SerializableValue([property: DebuggerBrowsable(DebuggerBrow
 	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
 	public string[] AsStringArray
 	{
-		readonly get => CValue as string[] ?? [];
+		readonly get => CValue is Utf8String[] strings ? Array.ConvertAll(strings, static s => s.String) : CValue as string[] ?? [];
 		set => SetReference(value);
 	}
 
@@ -322,7 +332,10 @@ public record struct SerializableValue([property: DebuggerBrowsable(DebuggerBrow
 	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
 	public string[][] AsStringArrayArray
 	{
-		readonly get => CValue as string[][] ?? [];
+		readonly get =>
+			CValue is Utf8String[][] strings
+				? Array.ConvertAll(strings, static array => Array.ConvertAll(array, static s => s.String))
+				: CValue as string[][] ?? [];
 		set => SetReference(value);
 	}
 
@@ -345,7 +358,8 @@ public record struct SerializableValue([property: DebuggerBrowsable(DebuggerBrow
 		}
 	}
 
-	private void SetReference<T>(T value) where T : class
+	private void SetReference<T>(T value)
+		where T : class
 	{
 		if (CValue is not null and not T)
 		{
@@ -364,7 +378,8 @@ public record struct SerializableValue([property: DebuggerBrowsable(DebuggerBrow
 
 	public readonly ref SerializableValue this[string name] => ref AsStructure[name];
 
-	public static SerializableValue FromPrimitive<T>(T value) where T : notnull
+	public static SerializableValue FromPrimitive<T>(T value)
+		where T : notnull
 	{
 		SerializableValue result = default;
 		if (typeof(T) == typeof(bool))
@@ -421,7 +436,7 @@ public record struct SerializableValue([property: DebuggerBrowsable(DebuggerBrow
 		}
 		else if (typeof(T) == typeof(Utf8String))
 		{
-			result.AsString = ((Utf8String)(object)value).String;
+			result.CValue = value;
 		}
 		else
 		{
@@ -430,7 +445,14 @@ public record struct SerializableValue([property: DebuggerBrowsable(DebuggerBrow
 		return result;
 	}
 
-	public void Read(ref EndianSpanReader reader, UnityVersion version, TransferInstructionFlags flags, int depth, in SerializableType.Field etalon, ITypeResolver resolver)
+	public void Read(
+		ref EndianSpanReader reader,
+		UnityVersion version,
+		TransferInstructionFlags flags,
+		int depth,
+		in SerializableType.Field etalon,
+		ITypeResolver resolver
+	)
 	{
 		switch (etalon.ArrayDepth)
 		{
@@ -541,7 +563,9 @@ public record struct SerializableValue([property: DebuggerBrowsable(DebuggerBrow
 							long remainingBytes = reader.Length - reader.Position;
 							if (remainingBytes < count)
 							{
-								throw new EndOfStreamException($"When reading field {etalon.Name}, Stream only has {remainingBytes} bytes remaining, so {count} pair elements of type {etalon.Type.Name} cannot be read.");
+								throw new EndOfStreamException(
+									$"When reading field {etalon.Name}, Stream only has {remainingBytes} bytes remaining, so {count} pair elements of type {etalon.Type.Name} cannot be read."
+								);
 							}
 							SerializablePair[] pairs = CreateArray<SerializablePair>(count);
 
@@ -654,7 +678,14 @@ public record struct SerializableValue([property: DebuggerBrowsable(DebuggerBrow
 			reader.Align();
 		}
 
-		static IUnityAssetBase CreateAndReadComplexStructure(ref EndianSpanReader reader, UnityVersion version, TransferInstructionFlags flags, int depth, SerializableType.Field etalon, ITypeResolver resolver)
+		static IUnityAssetBase CreateAndReadComplexStructure(
+			ref EndianSpanReader reader,
+			UnityVersion version,
+			TransferInstructionFlags flags,
+			int depth,
+			SerializableType.Field etalon,
+			ITypeResolver resolver
+		)
 		{
 			IUnityAssetBase asset = etalon.Type.CreateInstance(depth + 1, version);
 			if (asset is SerializableStructure structure)
@@ -675,7 +706,9 @@ public record struct SerializableValue([property: DebuggerBrowsable(DebuggerBrow
 		long remainingBytes = reader.Length - reader.Position;
 		if (remainingBytes < count)
 		{
-			throw new EndOfStreamException($"When reading field {etalon.Name}, Stream only has {remainingBytes} bytes remaining, so {count} complex elements of type {etalon.Type.Name} cannot be read.");
+			throw new EndOfStreamException(
+				$"When reading field {etalon.Name}, Stream only has {remainingBytes} bytes remaining, so {count} complex elements of type {etalon.Type.Name} cannot be read."
+			);
 		}
 	}
 
@@ -951,7 +984,8 @@ public record struct SerializableValue([property: DebuggerBrowsable(DebuggerBrow
 		}
 	}
 
-	private static void VisitPrimitiveArray<T>(AssetWalker walker, T[] array) where T : notnull
+	private static void VisitPrimitiveArray<T>(AssetWalker walker, T[] array)
+		where T : notnull
 	{
 		if (walker.EnterList(array))
 		{
@@ -992,7 +1026,7 @@ public record struct SerializableValue([property: DebuggerBrowsable(DebuggerBrow
 				else if (etalon.Type.Type is PrimitiveType.String)
 				{
 					PValue = default;
-					CValue = source.CValue as string ?? "";
+					CValue = source.CValue;
 				}
 				else if (etalon.Type.Type is PrimitiveType.MapPair or PrimitiveType.Pair)
 				{
@@ -1089,8 +1123,7 @@ public record struct SerializableValue([property: DebuggerBrowsable(DebuggerBrow
 						break;
 					case PrimitiveType.String:
 						{
-							ReadOnlySpan<string> span = source.CValue as string[];
-							CValue = span.ToArray();
+							CValue = source.CValue is Utf8String[] strings ? strings.ToArray() : source.AsStringArray.ToArray();
 						}
 						break;
 					case PrimitiveType.Complex:

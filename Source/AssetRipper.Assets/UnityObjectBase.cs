@@ -1,7 +1,7 @@
-﻿using AssetRipper.Assets.Collections;
+﻿using System.Diagnostics;
+using AssetRipper.Assets.Collections;
 using AssetRipper.Assets.Debugging;
 using AssetRipper.Assets.Metadata;
-using System.Diagnostics;
 
 namespace AssetRipper.Assets;
 
@@ -18,16 +18,20 @@ public abstract partial class UnityObjectBase : UnityAssetBase, IUnityObjectBase
 
 	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
 	private PathDetails? originalPathDetails;
+
 	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
 	private PathDetails? overridePathDetails;
+
 	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
 	public AssetInfo AssetInfo { get; }
 	public AssetCollection Collection => AssetInfo.Collection;
+
 	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
 	public int ClassID => AssetInfo.ClassID;
 	public long PathID => AssetInfo.PathID;
 	public virtual string ClassName => GetType().Name;
 	public IUnityObjectBase? MainAsset { get; set; }
+	public IUnityObjectBase? SourceAsset { get; set; }
 
 	/// <inheritdoc/>
 	public string? OriginalPath

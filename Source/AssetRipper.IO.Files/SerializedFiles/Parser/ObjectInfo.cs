@@ -11,26 +11,34 @@ public struct ObjectInfo
 	/// 5.0.0unk and greater / Format Version at least 14
 	/// </summary>
 	public static bool IsLongID(FormatVersion generation) => generation >= FormatVersion.Unknown_14;
+
 	/// <summary>
 	/// Less than 5.5.0 / Format Version less than 16
 	/// </summary>
 	public static bool HasClassID(FormatVersion generation) => generation < FormatVersion.RefactoredClassId;
+
 	/// <summary>
 	/// Less than 5.0.0unk / Format Version less than 11
 	/// </summary>
 	public static bool HasIsDestroyed(FormatVersion generation) => generation < FormatVersion.HasScriptTypeIndex;
+
 	/// <summary>
 	/// 5.0.0unk to 5.5.0unk exclusive / Format Version at least 11 but less than 17
 	/// </summary>
-	public static bool HasScriptTypeIndex(FormatVersion generation) => generation >= FormatVersion.HasScriptTypeIndex && generation < FormatVersion.RefactorTypeData;
+	public static bool HasScriptTypeIndex(FormatVersion generation) =>
+		generation >= FormatVersion.HasScriptTypeIndex && generation < FormatVersion.RefactorTypeData;
+
 	/// <summary>
 	/// 5.0.1 to 5.5.0unk exclusive / Format Version at least 15 but less than 17
 	/// </summary>
-	public static bool HasStripped(FormatVersion generation) => generation >= FormatVersion.SupportsStrippedObject && generation < FormatVersion.RefactorTypeData;
+	public static bool HasStripped(FormatVersion generation) =>
+		generation >= FormatVersion.SupportsStrippedObject && generation < FormatVersion.RefactorTypeData;
+
 	/// <summary>
 	/// 5.5.0unk and greater / Format Version at least 17
 	/// </summary>
 	public static bool HasSerializedTypeIndex(FormatVersion generation) => generation >= FormatVersion.RefactorTypeData;
+
 	/// <summary>
 	/// 2020.1.0 and greater / Format Version at least 22
 	/// </summary>
@@ -218,15 +226,18 @@ public struct ObjectInfo
 	/// Unique ID that identifies the object. Can be used as a key for a map.
 	/// </summary>
 	public long FileID { get; set; }
+
 	/// <summary>
 	/// Type ID of the object, which is mapped to <see cref="SerializedType.TypeID"/><br/>
 	/// Equals to classID if the object is not MonoBehaviour"/>
 	/// </summary>
 	public int TypeID { get; set; }
+
 	/// <summary>
 	/// Type index in <see cref="SerializedFileMetadata.Types"/> array<br/>
 	/// </summary>
 	public int SerializedTypeIndex { get; set; }
+
 	/// <summary>
 	/// Class ID of the object.
 	/// </summary>
@@ -235,15 +246,23 @@ public struct ObjectInfo
 	public short ScriptTypeIndex { get; set; }
 	public bool Stripped { get; set; }
 	public SerializedType? Type { get; set; }
+
 	/// <summary>
 	/// The data for the object.
 	/// </summary>
 	[AllowNull]
-	public byte[] ObjectData { readonly get => field ?? []; set; }
-
-	public ObjectInfo()
+	public byte[] ObjectData
 	{
+		readonly get => field ?? [];
+		set;
 	}
+
+	/// <summary>Player layout to use instead of the standard generated reader.</summary>
+	public TypeTrees.TypeTree? SourceTypeTree { get; set; }
+	public string? SourceResourcePath { get; set; }
+	public long? SourceResourceSize { get; set; }
+
+	public ObjectInfo() { }
 
 	public ObjectInfo(SerializedType type)
 	{
@@ -272,7 +291,10 @@ public struct ObjectInfo
 			&& ScriptTypeIndex == other.ScriptTypeIndex
 			&& Stripped == other.Stripped
 			&& EqualityComparer<SerializedType>.Default.Equals(Type, other.Type)
-			&& ObjectData.AsSpan().SequenceEqual(other.ObjectData);
+			&& ObjectData.AsSpan().SequenceEqual(other.ObjectData)
+			&& EqualityComparer<TypeTrees.TypeTree>.Default.Equals(SourceTypeTree, other.SourceTypeTree)
+			&& SourceResourcePath == other.SourceResourcePath
+			&& SourceResourceSize == other.SourceResourceSize;
 	}
 
 	public override readonly int GetHashCode()
@@ -287,6 +309,9 @@ public struct ObjectInfo
 		hash.Add(Stripped);
 		hash.Add(Type);
 		hash.AddBytes(ObjectData);
+		hash.Add(SourceTypeTree);
+		hash.Add(SourceResourcePath);
+		hash.Add(SourceResourceSize);
 		return hash.ToHashCode();
 	}
 

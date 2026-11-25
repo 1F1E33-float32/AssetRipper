@@ -1,6 +1,8 @@
-﻿using AssetRipper.Assets;
+using System.Collections.Concurrent;
+using AssetRipper.Assets;
 using AssetRipper.Assets.Generics;
 using AssetRipper.Assets.IO;
+using AssetRipper.Assets.IO.Writing;
 using AssetRipper.Assets.Metadata;
 using AssetRipper.Import.Logging;
 using AssetRipper.Import.Structure.Assembly.Managers;
@@ -8,6 +10,7 @@ using AssetRipper.Import.Structure.Assembly.Serializable;
 using AssetRipper.Import.Structure.Assembly.TypeTrees;
 using AssetRipper.IO.Endian;
 using AssetRipper.IO.Files;
+using AssetRipper.IO.Files.SerializedFiles;
 using AssetRipper.IO.Files.SerializedFiles.Parser;
 using AssetRipper.SerializationLogic;
 using AssetRipper.SourceGenerated;
@@ -47,7 +50,129 @@ public sealed class GameAssetFactory : AssetFactoryBase
 
 	private IAssemblyManager AssemblyManager { get; }
 
-	public override IUnityObjectBase? ReadAsset(AssetInfo assetInfo, ReadOnlyArraySegment<byte> assetData, SerializedType? assetType, IReadOnlyList<SerializedTypeReference> referenceTypes)
+	private static readonly ConcurrentDictionary<
+		(int ClassID, UnityVersion Version, bool Release),
+		Lazy<(TypeTreeNodeStruct Root, SerializableTreeType Type)>
+	> ProjectionLayouts = new();
+
+	public override IUnityObjectBase? ReadAsset(AssetInfo assetInfo, ObjectInfo objectInfo, IReadOnlyList<SerializedTypeReference> referenceTypes)
+	{
+		if (objectInfo.SourceTypeTree is not { } sourceTree)
+		{
+			return ReadAsset(assetInfo, objectInfo.ObjectData, objectInfo.Type, referenceTypes);
+		}
+		TypeTreeObject source;
+		try
+		{
+			source = TypeTreeObject.Create(assetInfo, sourceTree, TypeTreeResolver.Create(referenceTypes));
+			EndianSpanReader reader = new(objectInfo.ObjectData, assetInfo.Collection.EndianType);
+			source.Read(ref reader);
+			if (reader.Position != reader.Length)
+			{
+				throw new InvalidDataException($"The source type tree consumed {reader.Position} of {reader.Length} bytes.");
+			}
+			source.OriginalData = objectInfo.ObjectData;
+			source.OriginalTypeTree = sourceTree;
+			BindResource(source, objectInfo);
+		}
+		catch (Exception ex)
+		{
+			Logger.Error(
+				LogCategory.Import,
+				$"Unable to parse source type tree, ClassID {assetInfo.ClassID}, PathID {assetInfo.PathID}, {assetInfo.Collection.Name}, Path: {assetInfo.Collection.FilePath}",
+				ex
+			);
+			return new UnreadableObject(assetInfo, objectInfo.ObjectData);
+		}
+		try
+		{
+			IUnityObjectBase? asset = AssetFactory.CreateSerialized(assetInfo, assetInfo.Collection.Version);
+			if (asset is null)
+			{
+				return source;
+			}
+			bool release = assetInfo.Collection.Flags.IsRelease();
+			(TypeTreeNodeStruct root, SerializableTreeType type) = ProjectionLayouts
+				.GetOrAdd(
+					(assetInfo.ClassID, assetInfo.Collection.Version, release),
+					static key =>
+						new(() =>
+						{
+							if (
+								!TypeTreeNodeStruct.TryMakeFromTpk(
+									(ClassIDType)key.ClassID,
+									key.Version,
+									out TypeTreeNodeStruct releaseRoot,
+									out TypeTreeNodeStruct editorRoot
+								)
+							)
+							{
+								throw new NotSupportedException($"Standard type tree for ClassID {key.ClassID} is unavailable.");
+							}
+							TypeTreeNodeStruct root = key.Release ? releaseRoot : editorRoot;
+							return (root, SerializableTreeType.FromRootNode(root));
+						})
+				)
+				.Value;
+			using MemoryStream stream = new();
+			using AssetWriter writer = new(stream, assetInfo.Collection);
+			TypeTreeSerialization.Write(writer, root, type, release ? source.ReleaseFields : source.EditorFields, source.OriginalResourcePath);
+			EndianSpanReader reader = new(stream.GetBuffer().AsSpan(0, checked((int)stream.Length)), assetInfo.Collection.EndianType);
+			asset.Read(ref reader);
+			if (reader.Position != reader.Length)
+			{
+				throw new InvalidDataException($"The standard model consumed {reader.Position} of {reader.Length} projected bytes.");
+			}
+			asset.SourceAsset = source;
+			return asset;
+		}
+		catch (Exception ex)
+		{
+			Logger.Error(
+				LogCategory.Import,
+				$"Unable to project {source.ClassName} ({source.ClassID}), PathID {source.PathID}, {source.Collection.Name}; complete source fields are retained.",
+				ex
+			);
+			return source;
+		}
+	}
+
+	private static void BindResource(TypeTreeObject source, ObjectInfo objectInfo)
+	{
+		if (
+			!source.ReleaseFields.TryGetField("m_StreamData", out SerializableValue data)
+			|| data.CValue is not SerializableStructure stream
+			|| stream.Type.Name != "StreamingInfo"
+			|| stream.ContainsField("path")
+		)
+		{
+			return;
+		}
+		ulong offset = stream["offset"].AsUInt64;
+		uint size = stream["size"].AsUInt32;
+		if (size == 0)
+		{
+			return;
+		}
+		if (
+			objectInfo.SourceResourcePath is null
+			|| objectInfo.SourceResourceSize is not { } length
+			|| length < 0
+			|| offset > (ulong)length
+			|| size > (ulong)length - offset
+		)
+		{
+			throw new InvalidDataException($"StreamingInfo extent {offset}+{size} exceeds the bound resource.");
+		}
+		source.OriginalResourcePath = objectInfo.SourceResourcePath;
+	}
+
+	public override IUnityObjectBase? ReadAsset(
+		AssetInfo assetInfo,
+		ReadOnlyArraySegment<byte> assetData,
+		SerializedType? assetType,
+		IReadOnlyList<SerializedTypeReference> referenceTypes
+	)
 	{
 		if (assetInfo.Collection.Version.LessThan(3, 5))
 		{
@@ -62,11 +187,17 @@ public sealed class GameAssetFactory : AssetFactoryBase
 		}
 		else
 		{
-			return ReadNormalObject(assetInfo, assetData);
+			return ReadNormalObject(assetInfo, assetData, assetType, referenceTypes);
 		}
 	}
 
-	private static IMonoBehaviour ReadMonoBehaviour(IMonoBehaviour monoBehaviour, ReadOnlyArraySegment<byte> assetData, IAssemblyManager assemblyManager, SerializedType? type, IReadOnlyList<SerializedTypeReference> referenceTypes)
+	private static IMonoBehaviour ReadMonoBehaviour(
+		IMonoBehaviour monoBehaviour,
+		ReadOnlyArraySegment<byte> assetData,
+		IAssemblyManager assemblyManager,
+		SerializedType? type,
+		IReadOnlyList<SerializedTypeReference> referenceTypes
+	)
 	{
 		EndianSpanReader reader = new EndianSpanReader(assetData, monoBehaviour.Collection.EndianType);
 		try
@@ -97,9 +228,21 @@ public sealed class GameAssetFactory : AssetFactoryBase
 		return monoBehaviour;
 	}
 
-	private static IUnityObjectBase ReadNormalObject(AssetInfo assetInfo, ReadOnlyArraySegment<byte> assetData)
+	private static IUnityObjectBase ReadNormalObject(
+		AssetInfo assetInfo,
+		ReadOnlyArraySegment<byte> assetData,
+		SerializedType? assetType,
+		IReadOnlyList<SerializedTypeReference> referenceTypes
+	)
 	{
-		IUnityObjectBase asset = TryReadNormalObject(assetInfo, assetData, assetInfo.Collection.Version, out string? error);
+		IUnityObjectBase asset = TryReadNormalObject(
+			assetInfo,
+			assetData,
+			assetInfo.Collection.Version,
+			assetType,
+			referenceTypes,
+			out string? error
+		);
 		if (error is null)
 		{
 			return asset;
@@ -120,7 +263,7 @@ public sealed class GameAssetFactory : AssetFactoryBase
 		{
 			UnityVersion oldVersion = assetInfo.Collection.Version;
 			UnityVersion newVersion = new UnityVersion(oldVersion.Major, oldVersion.Minor, unchecked((ushort)(oldVersion.Build + 1u)));
-			IUnityObjectBase newAsset = TryReadNormalObject(assetInfo, assetData, newVersion, out string? newError);
+			IUnityObjectBase newAsset = TryReadNormalObject(assetInfo, assetData, newVersion, assetType, referenceTypes, out string? newError);
 			if (newError is null)
 			{
 				return newAsset;
@@ -133,9 +276,16 @@ public sealed class GameAssetFactory : AssetFactoryBase
 		return unreadable;
 	}
 
-	private static IUnityObjectBase TryReadNormalObject(AssetInfo assetInfo, ReadOnlySpan<byte> assetData, UnityVersion version, out string? error)
+	private static IUnityObjectBase TryReadNormalObject(
+		AssetInfo assetInfo,
+		ReadOnlySpan<byte> assetData,
+		UnityVersion version,
+		SerializedType? assetType,
+		IReadOnlyList<SerializedTypeReference> referenceTypes,
+		out string? error
+	)
 	{
-		IUnityObjectBase? asset = CreateAsset(assetInfo, version);
+		IUnityObjectBase? asset = CreateAsset(assetInfo, version, assetType, referenceTypes);
 		if (asset is null)
 		{
 			error = null;
@@ -187,10 +337,28 @@ public sealed class GameAssetFactory : AssetFactoryBase
 		}
 	}
 
-	private static IUnityObjectBase? CreateAsset(AssetInfo assetInfo, UnityVersion version)
+	private static IUnityObjectBase? CreateAsset(
+		AssetInfo assetInfo,
+		UnityVersion version,
+		SerializedType? assetType,
+		IReadOnlyList<SerializedTypeReference> referenceTypes
+	)
 	{
 		IUnityObjectBase? asset = AssetFactory.CreateSerialized(assetInfo, version);
-		if (asset is null && TypeTreeNodeStruct.TryMakeFromTpk((ClassIDType)assetInfo.ClassID, version, out TypeTreeNodeStruct releaseRoot, out TypeTreeNodeStruct editorRoot))
+		if (asset is null && assetType is not null && TypeTreeNodeStruct.TryMakeFromTypeTree(assetType.OldType, out TypeTreeNodeStruct root))
+		{
+			// Custom native engine types can supply their layout through the file or a game plugin.
+			return TypeTreeObject.Create(assetInfo, root, TypeTreeResolver.Create(referenceTypes));
+		}
+		else if (
+			asset is null
+			&& TypeTreeNodeStruct.TryMakeFromTpk(
+				(ClassIDType)assetInfo.ClassID,
+				version,
+				out TypeTreeNodeStruct releaseRoot,
+				out TypeTreeNodeStruct editorRoot
+			)
+		)
 		{
 			//Engine assets cannot have [SerializeReference] fields, so they never need a type resolver.
 			return TypeTreeObject.Create(assetInfo, releaseRoot, editorRoot, ITypeResolver.Null);
@@ -203,7 +371,7 @@ public sealed class GameAssetFactory : AssetFactoryBase
 
 	private static string MakeError_IncorrectNumberOfBytesRead(IUnityObjectBase asset, ref EndianSpanReader reader)
 	{
-		return $"Read {reader.Position} but expected {reader.Length} for asset type {(ClassIDType)asset.ClassID}. V: {asset.Collection.Version} P: {asset.Collection.Platform} N: {asset.Collection.Name} Path: {asset.Collection.FilePath}";
+		return $"Read {reader.Position} but expected {reader.Length} for asset type {asset.ClassName} ({asset.ClassID}). V: {asset.Collection.Version} P: {asset.Collection.Platform} N: {asset.Collection.Name} PathID: {asset.PathID} Path: {asset.Collection.FilePath}";
 	}
 
 	/// <summary>
@@ -221,18 +389,21 @@ public sealed class GameAssetFactory : AssetFactoryBase
 		//unsigned int data[3] // ByteSize{4}, Index{2c}, Version{1}, IsArray{0}, MetaFlag{10}
 		texture.OriginalWidth_C28 = reader.ReadInt32();
 		texture.OriginalHeight_C28 = reader.ReadInt32();
-		texture.OriginalAssetGuid_C28.ReadRelease(ref reader);//Release and Editor are the same for GUID.
+		texture.OriginalAssetGuid_C28.ReadRelease(ref reader); //Release and Editor are the same for GUID.
 		Logger.Warning(LogCategory.Import, $"Texture {texture.Name} had an extra 24 bytes, which were assumed to be non-standard Chinese fields.");
 	}
 
 	private static void LogMonoBehaviorReadException(IMonoBehaviour monoBehaviour, Exception ex)
 	{
-		Logger.Error(LogCategory.Import, $"Unable to read {monoBehaviour}, because script {monoBehaviour.Structure} layout mismatched binary content ({ex.GetType().Name}).");
+		Logger.Error(
+			LogCategory.Import,
+			$"Unable to read {monoBehaviour}, because script {monoBehaviour.Structure} layout mismatched binary content ({ex.GetType().Name})."
+		);
 	}
 
 	private static string MakeError_ReadException(IUnityObjectBase asset, Exception ex)
 	{
-		return $"Error during reading of asset type {(ClassIDType)asset.ClassID}. V: {asset.Collection.Version} P: {asset.Collection.Platform} N: {asset.Collection.Name} Path: {asset.Collection.FilePath}\n{ex}";
+		return $"Error during reading of asset type {asset.ClassName} ({asset.ClassID}). V: {asset.Collection.Version} P: {asset.Collection.Platform} N: {asset.Collection.Name} PathID: {asset.PathID} Path: {asset.Collection.FilePath}\n{ex}";
 	}
 
 	public static IUnityAssetBase CreateEngineAsset(string name, UnityVersion version)

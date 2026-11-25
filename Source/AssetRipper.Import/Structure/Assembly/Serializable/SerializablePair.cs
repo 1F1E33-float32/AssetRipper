@@ -1,4 +1,4 @@
-﻿using AssetRipper.Assets.Cloning;
+using AssetRipper.Assets.Cloning;
 using AssetRipper.Assets.IO.Writing;
 using AssetRipper.Assets.Traversal;
 using AssetRipper.IO.Endian;
@@ -11,8 +11,10 @@ public sealed class SerializablePair
 {
 	public int Depth { get; }
 	public SerializableType Type { get; }
-	public SerializableValue First { get; }
-	public SerializableValue Second { get; }
+	private SerializableValue first;
+	private SerializableValue second;
+	public ref SerializableValue First => ref first;
+	public ref SerializableValue Second => ref second;
 	private SerializableType.Field FirstField => Type.Fields[0];
 	private SerializableType.Field SecondField => Type.Fields[1];
 

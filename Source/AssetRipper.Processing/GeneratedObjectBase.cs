@@ -21,32 +21,73 @@ public abstract class GeneratedObjectBase(AssetInfo assetInfo) : UnityAssetBase,
 	public virtual string ClassName => GetType().Name;
 
 	/// <inheritdoc/>
-	public virtual string? OriginalPath { get => null; set { } }
+	public virtual string? OriginalPath
+	{
+		get => null;
+		set { }
+	}
 
 	/// <inheritdoc/>
-	public virtual string? OriginalDirectory { get => null; set { } }
+	public virtual string? OriginalDirectory
+	{
+		get => null;
+		set { }
+	}
 
 	/// <inheritdoc/>
-	public virtual string? OriginalName { get => null; set { } }
+	public virtual string? OriginalName
+	{
+		get => null;
+		set { }
+	}
 
 	/// <inheritdoc/>
-	public virtual string? OriginalExtension { get => null; set { } }
+	public virtual string? OriginalExtension
+	{
+		get => null;
+		set { }
+	}
 
 	/// <inheritdoc/>
-	public virtual string? OverridePath { get => null; set { } }
+	public virtual string? OverridePath
+	{
+		get => null;
+		set { }
+	}
 
 	/// <inheritdoc/>
-	public virtual string? OverrideDirectory { get => null; set { } }
+	public virtual string? OverrideDirectory
+	{
+		get => null;
+		set { }
+	}
 
 	/// <inheritdoc/>
-	public virtual string? OverrideName { get => null; set { } }
+	public virtual string? OverrideName
+	{
+		get => null;
+		set { }
+	}
 
 	/// <inheritdoc/>
-	public virtual string? OverrideExtension { get => null; set { } }
+	public virtual string? OverrideExtension
+	{
+		get => null;
+		set { }
+	}
 
 	/// <inheritdoc/>
-	public virtual string? AssetBundleName { get => null; set { } }
+	public virtual string? AssetBundleName
+	{
+		get => null;
+		set { }
+	}
 
 	/// <inheritdoc/>
-	public virtual IUnityObjectBase? MainAsset { get => null; set { } }
+	public virtual IUnityObjectBase? MainAsset
+	{
+		get => null;
+		set { }
+	}
+	public IUnityObjectBase? SourceAsset { get; set; }
 }

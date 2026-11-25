@@ -1,10 +1,11 @@
-﻿using AssetRipper.Import.Logging;
+﻿﻿using AssetRipper.Import.Logging;
 using System.Text.Json.Serialization;
 
 namespace AssetRipper.Import.Configuration;
 
 public sealed record class ImportSettings
 {
+	public string Game { get; set; } = "";
 	/// <summary>
 	/// The level of scripts to export
 	/// </summary>
@@ -42,6 +43,7 @@ public sealed record class ImportSettings
 
 	public void Log()
 	{
+		Logger.Info(LogCategory.General, $"{nameof(Game)}: {Game}");
 		Logger.Info(LogCategory.General, $"{nameof(ScriptContentLevel)}: {ScriptContentLevel}");
 		Logger.Info(LogCategory.General, $"{nameof(StreamingAssetsMode)}: {StreamingAssetsMode}");
 		Logger.Info(LogCategory.General, $"{nameof(DefaultVersion)}: {DefaultVersion}");

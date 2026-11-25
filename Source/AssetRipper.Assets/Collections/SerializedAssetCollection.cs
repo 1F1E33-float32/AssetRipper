@@ -12,12 +12,13 @@ namespace AssetRipper.Assets.Collections;
 public sealed class SerializedAssetCollection : AssetCollection
 {
 	private FileIdentifier[]? DependencyIdentifiers { get; set; }
+	public IReadOnlyList<string> OriginalDependencies { get; private set; } = [];
 
-	private SerializedAssetCollection(Bundle bundle) : base(bundle)
-	{
-	}
+	private SerializedAssetCollection(Bundle bundle)
+		: base(bundle) { }
 
-	internal void InitializeDependencyList(IDependencyProvider? dependencyProvider)
+	/// <summary>Resolves dependencies after a collection has been added by a lazy importer.</summary>
+	public void InitializeDependencyList(IDependencyProvider? dependencyProvider = null)
 	{
 		if (Dependencies.Count > 1)
 		{
@@ -50,12 +51,18 @@ public sealed class SerializedAssetCollection : AssetCollection
 	/// <param name="factory">A factory for creating assets.</param>
 	/// <param name="defaultVersion">The default version to use if the file does not have a version, ie the version has been stripped.</param>
 	/// <returns>The new collection.</returns>
-	internal static SerializedAssetCollection FromSerializedFile(Bundle bundle, SerializedFile file, AssetFactoryBase factory, UnityVersion defaultVersion = default)
+	internal static SerializedAssetCollection FromSerializedFile(
+		Bundle bundle,
+		SerializedFile file,
+		AssetFactoryBase factory,
+		UnityVersion defaultVersion = default
+	)
 	{
 		UnityVersion version = file.Version.Equals(0, 0, 0) ? defaultVersion : file.Version;
 		SerializedAssetCollection collection = new SerializedAssetCollection(bundle)
 		{
 			Name = file.NameFixed,
+			FilePath = file.FilePath,
 			Version = version,
 			OriginalVersion = version,
 			Platform = file.Platform,
@@ -66,6 +73,7 @@ public sealed class SerializedAssetCollection : AssetCollection
 		if (fileDependencies.Length > 0)
 		{
 			collection.DependencyIdentifiers = fileDependencies.ToArray();
+			collection.OriginalDependencies = collection.DependencyIdentifiers.Select(static identifier => identifier.GetFilePath()).ToArray();
 		}
 		ReadData(collection, file, factory);
 		return collection;
@@ -78,7 +86,7 @@ public sealed class SerializedAssetCollection : AssetCollection
 		{
 			int classID = objectInfo.TypeID < 0 ? 114 : objectInfo.TypeID;
 			AssetInfo assetInfo = new AssetInfo(collection, objectInfo.FileID, classID);
-			IUnityObjectBase? asset = factory.ReadAsset(assetInfo, objectInfo.ObjectData, objectInfo.Type, referenceTypes);
+			IUnityObjectBase? asset = factory.ReadAsset(assetInfo, objectInfo, referenceTypes);
 			if (asset is not null)
 			{
 				collection.AddAsset(asset);

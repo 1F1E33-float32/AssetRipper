@@ -1,6 +1,6 @@
-﻿using AssetRipper.IO.Endian;
-using AssetRipper.IO.Files.SerializedFiles.IO;
 using System.Text;
+using AssetRipper.IO.Endian;
+using AssetRipper.IO.Files.SerializedFiles.IO;
 
 namespace AssetRipper.IO.Files.SerializedFiles.Parser.TypeTrees;
 
@@ -186,6 +186,30 @@ public sealed class TypeTree : IEquatable<TypeTree?>
 	public List<TypeTreeNode> Nodes { get; } = [];
 	public byte[] StringBuffer { get; set; } = [];
 
+	public void RebuildStringBuffer()
+	{
+		using MemoryStream buffer = new();
+		Dictionary<string, uint> offsets = new(StringComparer.Ordinal);
+		foreach (TypeTreeNode node in Nodes)
+		{
+			node.TypeStrOffset = AddString(node.Type);
+			node.NameStrOffset = AddString(node.Name);
+		}
+		StringBuffer = buffer.ToArray();
+
+		uint AddString(string value)
+		{
+			if (!offsets.TryGetValue(value, out uint offset))
+			{
+				offset = checked((uint)buffer.Position);
+				buffer.Write(Encoding.UTF8.GetBytes(value));
+				buffer.WriteByte(0);
+				offsets.Add(value, offset);
+			}
+			return offset;
+		}
+	}
+
 	public override bool Equals(object? obj)
 	{
 		return Equals(obj as TypeTree);
@@ -193,9 +217,7 @@ public sealed class TypeTree : IEquatable<TypeTree?>
 
 	public bool Equals(TypeTree? other)
 	{
-		return other is not null
-			&& Nodes.SequenceEqual(other.Nodes)
-			&& StringBuffer.AsSpan().SequenceEqual(other.StringBuffer);
+		return other is not null && Nodes.SequenceEqual(other.Nodes) && StringBuffer.AsSpan().SequenceEqual(other.StringBuffer);
 	}
 
 	public override int GetHashCode()

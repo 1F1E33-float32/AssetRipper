@@ -1,13 +1,15 @@
-﻿using AssetRipper.Assets;
+﻿using System.CodeDom.Compiler;
+using System.Globalization;
+using System.Runtime.CompilerServices;
+using System.Web;
+using AssetRipper.Assets;
 using AssetRipper.Assets.Metadata;
 using AssetRipper.Assets.Traversal;
 using AssetRipper.Primitives;
-using System.CodeDom.Compiler;
-using System.Runtime.CompilerServices;
-using System.Web;
 
 namespace AssetRipper.Export.PrimaryContent;
 
+/// <summary>JSON traversal shared by content previews and original serialized asset exports.</summary>
 public class DefaultJsonWalker : AssetWalker
 {
 	protected IndentedTextWriter Writer { get; }
@@ -142,9 +144,7 @@ public class DefaultJsonWalker : AssetWalker
 
 	public override void ExitDictionaryPair<TKey, TValue>(KeyValuePair<TKey, TValue> pair)
 	{
-		if (IsString<TKey>())
-		{
-		}
+		if (IsString<TKey>()) { }
 		else
 		{
 			ExitPair(pair);
@@ -236,11 +236,16 @@ public class DefaultJsonWalker : AssetWalker
 		}
 		else if (typeof(T) == typeof(float))
 		{
-			Writer.Write(Unsafe.As<T, float>(ref value));
+			float number = Unsafe.As<T, float>(ref value);
+			string text = number.ToString("R", CultureInfo.InvariantCulture);
+			// Unity curve tangents can contain infinity; named strings keep the JSON valid.
+			Writer.Write(float.IsFinite(number) ? text : $"\"{text}\"");
 		}
 		else if (typeof(T) == typeof(double))
 		{
-			Writer.Write(Unsafe.As<T, double>(ref value));
+			double number = Unsafe.As<T, double>(ref value);
+			string text = number.ToString("R", CultureInfo.InvariantCulture);
+			Writer.Write(double.IsFinite(number) ? text : $"\"{text}\"");
 		}
 		else
 		{

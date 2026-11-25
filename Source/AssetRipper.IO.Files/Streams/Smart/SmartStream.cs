@@ -40,6 +40,9 @@ public sealed partial class SmartStream : Stream
 		return new SmartStream(new MemoryStream());
 	}
 
+	/// <summary>Takes ownership of a seekable backing stream.</summary>
+	public static SmartStream Create(Stream stream) => new(stream);
+
 	public static SmartStream CreateMemory(byte[] buffer)
 	{
 		return new SmartStream(new MemoryStream(buffer));

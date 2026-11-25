@@ -1,4 +1,6 @@
-﻿using AssetRipper.Assets;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using AssetRipper.Assets;
 using AssetRipper.Assets.Cloning;
 using AssetRipper.Assets.IO.Writing;
 using AssetRipper.Assets.Metadata;
@@ -6,13 +8,22 @@ using AssetRipper.Assets.Traversal;
 using AssetRipper.Import.Structure.Assembly.Serializable;
 using AssetRipper.Import.Structure.Assembly.TypeTrees;
 using AssetRipper.IO.Endian;
-using System.Diagnostics;
+using AssetRipper.IO.Files.SerializedFiles.Parser.TypeTrees;
+using AssetRipper.SerializationLogic;
 
 namespace AssetRipper.Import.AssetCreation;
 
 [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
 public abstract class TypeTreeObject : NullObject
 {
+	private static readonly ConditionalWeakTable<TypeTree, Layout> Layouts = new();
+
+	private sealed record Layout(TypeTreeNodeStruct Root, SerializableTreeType Type);
+
+	/// <summary>Exact source bytes, including padding, for a fully parsed original object.</summary>
+	public byte[]? OriginalData { get; internal set; }
+	public TypeTree? OriginalTypeTree { get; internal set; }
+	public string? OriginalResourcePath { get; internal set; }
 	public bool IsPlayerSettings => ClassID == 129;
 	public abstract SerializableStructure ReleaseFields { get; }
 	public abstract SerializableStructure EditorFields { get; }
@@ -20,45 +31,85 @@ public abstract class TypeTreeObject : NullObject
 	public sealed override int SerializedVersion => EditorFields.SerializedVersion;
 	public sealed override string ClassName => EditorFields.Type.Name;
 
-	private TypeTreeObject(AssetInfo assetInfo) : base(assetInfo)
-	{
-	}
+	private TypeTreeObject(AssetInfo assetInfo)
+		: base(assetInfo) { }
 
-	public sealed override void WriteRelease(AssetWriter writer) => ReleaseFields.WriteRelease(writer);
+	public override void WriteRelease(AssetWriter writer) => ReleaseFields.WriteRelease(writer);
 
-	public sealed override void WriteEditor(AssetWriter writer) => EditorFields.WriteEditor(writer);
+	public override void WriteEditor(AssetWriter writer) => EditorFields.WriteEditor(writer);
 
 	public sealed override void WalkRelease(AssetWalker walker) => ReleaseFields.WalkRelease(walker);
 
 	public sealed override void WalkEditor(AssetWalker walker) => EditorFields.WalkEditor(walker);
 
-	public static TypeTreeObject Create(AssetInfo assetInfo, TypeTreeNodeStruct root, ITypeResolver resolver) => new SingleTypeTreeObject(assetInfo, root, resolver);
+	public static TypeTreeObject Create(AssetInfo assetInfo, TypeTreeNodeStruct root, ITypeResolver resolver) =>
+		new SingleTypeTreeObject(assetInfo, root, resolver);
 
-	public static TypeTreeObject Create(AssetInfo assetInfo, TypeTreeNodeStruct releaseRoot, TypeTreeNodeStruct editorRoot, ITypeResolver resolver) => new DoubleTypeTreeObject(assetInfo, releaseRoot, editorRoot, resolver);
+	public static TypeTreeObject Create(AssetInfo assetInfo, TypeTree tree, ITypeResolver resolver)
+	{
+		Layout layout = Layouts.GetValue(
+			tree,
+			static tree =>
+			{
+				if (!TypeTreeNodeStruct.TryMakeFromTypeTree(tree, out TypeTreeNodeStruct root))
+				{
+					throw new InvalidDataException("The source object has no type tree.");
+				}
+				return new(root, SerializableTreeType.FromRootNode(root));
+			}
+		);
+		return new SingleTypeTreeObject(assetInfo, layout.Root, resolver, layout.Type);
+	}
+
+	public static TypeTreeObject Create(AssetInfo assetInfo, TypeTreeNodeStruct releaseRoot, TypeTreeNodeStruct editorRoot, ITypeResolver resolver) =>
+		new DoubleTypeTreeObject(assetInfo, releaseRoot, editorRoot, resolver);
 
 	private string GetDebuggerDisplay() => ClassName;
 
-	private sealed class SingleTypeTreeObject : TypeTreeObject
+	private sealed class SingleTypeTreeObject : TypeTreeObject, INamed
 	{
 		private readonly ITypeResolver resolver;
+		private readonly TypeTreeNodeStruct root;
 		public SerializableStructure Fields { get; }
 		public override SerializableStructure ReleaseFields => Fields;
 		public override SerializableStructure EditorFields => Fields;
+		public Utf8String Name
+		{
+			get => TryGetNameIndex(out int index) ? Fields.Fields[index].AsString : Utf8String.Empty;
+			set
+			{
+				if (TryGetNameIndex(out int index))
+				{
+					Fields.Fields[index].AsString = value;
+				}
+			}
+		}
 
-		public SingleTypeTreeObject(AssetInfo assetInfo, TypeTreeNodeStruct root, ITypeResolver resolver) : base(assetInfo)
+		private bool TryGetNameIndex(out int index) =>
+			Fields.TryGetIndex("m_Name", out index)
+			&& Fields.Type.Fields[index].Type.Type == PrimitiveType.String
+			&& Fields.Type.Fields[index].ArrayDepth == 0;
+
+		public SingleTypeTreeObject(AssetInfo assetInfo, TypeTreeNodeStruct root, ITypeResolver resolver, SerializableTreeType? type = null)
+			: base(assetInfo)
 		{
 			this.resolver = resolver;
-			Fields = SerializableTreeType.FromRootNode(root).CreateSerializableStructure();
+			this.root = root;
+			Fields = new(type ?? SerializableTreeType.FromRootNode(root), 0, Collection.Version);
 		}
 
 		public override void ReadRelease(ref EndianSpanReader reader)
 		{
-			Fields.Read(ref reader, Collection.Version, Collection.Flags, resolver);
+			TypeTreeSerialization.Read(Fields, root, ref reader, Collection.Version, Collection.Flags, resolver);
 		}
+
+		public override void WriteRelease(AssetWriter writer) => TypeTreeSerialization.Write(writer, root, Fields.Type, Fields);
+
+		public override void WriteEditor(AssetWriter writer) => TypeTreeSerialization.Write(writer, root, Fields.Type, Fields);
 
 		public override void ReadEditor(ref EndianSpanReader reader)
 		{
-			Fields.Read(ref reader, Collection.Version, Collection.Flags, resolver);
+			TypeTreeSerialization.Read(Fields, root, ref reader, Collection.Version, Collection.Flags, resolver);
 		}
 
 		public override void WalkStandard(AssetWalker walker)
@@ -83,7 +134,8 @@ public abstract class TypeTreeObject : NullObject
 		public override SerializableStructure ReleaseFields { get; }
 		public override SerializableStructure EditorFields { get; }
 
-		public DoubleTypeTreeObject(AssetInfo assetInfo, TypeTreeNodeStruct releaseRoot, TypeTreeNodeStruct editorRoot, ITypeResolver resolver) : base(assetInfo)
+		public DoubleTypeTreeObject(AssetInfo assetInfo, TypeTreeNodeStruct releaseRoot, TypeTreeNodeStruct editorRoot, ITypeResolver resolver)
+			: base(assetInfo)
 		{
 			this.resolver = resolver;
 			ReleaseFields = SerializableTreeType.FromRootNode(releaseRoot).CreateSerializableStructure();

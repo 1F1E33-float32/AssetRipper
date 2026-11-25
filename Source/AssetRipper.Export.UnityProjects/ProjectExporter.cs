@@ -73,6 +73,7 @@ public sealed partial class ProjectExporter
 
 	public void Export(GameBundle fileCollection, CoreConfiguration options, FileSystem fileSystem)
 	{
+		SourceAssetExporter.Export(fileCollection, options.ExportRootPath, fileSystem);
 		EventExportPreparationStarted?.Invoke();
 		List<IExportCollection> collections = CreateCollections(fileCollection);
 		EventExportPreparationFinished?.Invoke();

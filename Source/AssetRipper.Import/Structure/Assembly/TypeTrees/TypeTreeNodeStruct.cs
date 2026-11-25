@@ -1,26 +1,22 @@
-﻿using AssetRipper.IO.Files.SerializedFiles;
+﻿using System.Collections;
+using System.Diagnostics;
+using AssetRipper.IO.Files.SerializedFiles;
 using AssetRipper.IO.Files.SerializedFiles.Parser.TypeTrees;
 using AssetRipper.SerializationLogic;
 using AssetRipper.SourceGenerated;
 using AssetRipper.Tpk;
 using AssetRipper.Tpk.Shared;
 using AssetRipper.Tpk.TypeTrees;
-using System.Collections;
-using System.Diagnostics;
 
 namespace AssetRipper.Import.Structure.Assembly.TypeTrees;
 
 public readonly struct TypeTreeNodeStruct : IReadOnlyList<TypeTreeNodeStruct>, IEquatable<TypeTreeNodeStruct>
 {
-	[field: MaybeNull]
-	private static TpkTypeTreeBlob TypeTreeBlob
-	{
-		get
-		{
-			field ??= (TpkTypeTreeBlob)TpkFile.FromStream(SourceTpk.GetStream()).GetDataBlob();
-			return field;
-		}
-	}
+	private static readonly Lazy<TpkTypeTreeBlob> TypeTreeBlobCache = new(static () =>
+		(TpkTypeTreeBlob)TpkFile.FromStream(SourceTpk.GetStream()).GetDataBlob()
+	);
+
+	private static TpkTypeTreeBlob TypeTreeBlob => TypeTreeBlobCache.Value;
 
 	public string TypeName { get; }
 	public string Name { get; }
@@ -67,10 +63,7 @@ public readonly struct TypeTreeNodeStruct : IReadOnlyList<TypeTreeNodeStruct>, I
 
 	public bool IsVector
 	{
-		get
-		{
-			return TypeName is "vector" or "staticvector" or "set" && SubNodes.Count == 1 && SubNodes[0].IsArray;
-		}
+		get { return TypeName is "vector" or "staticvector" or "set" && SubNodes.Count == 1 && SubNodes[0].IsArray; }
 	}
 
 	/// <summary>
@@ -99,18 +92,12 @@ public readonly struct TypeTreeNodeStruct : IReadOnlyList<TypeTreeNodeStruct>, I
 
 	public bool IsPair
 	{
-		get
-		{
-			return TypeName is "pair" && SubNodes.Count == 2 && SubNodes[0].Name == "first" && SubNodes[1].Name == "second";
-		}
+		get { return TypeName is "pair" && SubNodes.Count == 2 && SubNodes[0].Name == "first" && SubNodes[1].Name == "second"; }
 	}
 
 	public bool IsMap
 	{
-		get
-		{
-			return TypeName is "map" && SubNodes.Count == 1 && SubNodes[0].IsArray && SubNodes[0].SubNodes[1].IsPair;
-		}
+		get { return TypeName is "map" && SubNodes.Count == 1 && SubNodes[0].IsArray && SubNodes[0].SubNodes[1].IsPair; }
 	}
 
 	/// <summary>
@@ -121,10 +108,7 @@ public readonly struct TypeTreeNodeStruct : IReadOnlyList<TypeTreeNodeStruct>, I
 	/// </remarks>
 	public bool IsManagedReferencesRegistry
 	{
-		get
-		{
-			return TypeName is ManagedReferenceTypes.RegistryName && Name is ManagedReferenceTypes.RegistryFieldName && SubNodes.Count > 1;
-		}
+		get { return TypeName is ManagedReferenceTypes.RegistryName && Name is ManagedReferenceTypes.RegistryFieldName && SubNodes.Count > 1; }
 	}
 
 	/// <summary>
@@ -165,18 +149,12 @@ public readonly struct TypeTreeNodeStruct : IReadOnlyList<TypeTreeNodeStruct>, I
 
 	public bool IsByte
 	{
-		get
-		{
-			return Count is 0 && TypeName is "char" or "UInt8";
-		}
+		get { return Count is 0 && TypeName is "char" or "UInt8"; }
 	}
 
 	public bool IsString
 	{
-		get
-		{
-			return Count is 1 && TypeName is "string" && this[0].IsArray && this[0][1].IsByte;
-		}
+		get { return Count is 1 && TypeName is "string" && this[0].IsArray && this[0][1].IsByte; }
 	}
 
 	public bool IsPPtr
@@ -248,7 +226,12 @@ public readonly struct TypeTreeNodeStruct : IReadOnlyList<TypeTreeNodeStruct>, I
 		}
 	}
 
-	public static bool TryMakeFromTpk(ClassIDType classID, UnityVersion version, out TypeTreeNodeStruct releaseTree, out TypeTreeNodeStruct editorTree)
+	public static bool TryMakeFromTpk(
+		ClassIDType classID,
+		UnityVersion version,
+		out TypeTreeNodeStruct releaseTree,
+		out TypeTreeNodeStruct editorTree
+	)
 	{
 		TpkTypeTreeBlob blob = TypeTreeBlob;
 		TpkClassInformation? classInformation = blob.ClassInformation.FirstOrDefault(c => c.ID == (int)classID);
@@ -337,11 +320,16 @@ public readonly struct TypeTreeNodeStruct : IReadOnlyList<TypeTreeNodeStruct>, I
 				{
 					subNodes =
 					[
-						new("Array", "Array", 1, TransferMetaFlags.NoTransferFlags,
-						[
-							new("SInt32", "size", 1, TransferMetaFlags.NoTransferFlags, []),
-							new("char", "data", 1, TransferMetaFlags.NoTransferFlags, []),
-						]),
+						new(
+							"Array",
+							"Array",
+							1,
+							TransferMetaFlags.NoTransferFlags,
+							[
+								new("SInt32", "size", 1, TransferMetaFlags.NoTransferFlags, []),
+								new("char", "data", 1, TransferMetaFlags.NoTransferFlags, []),
+							]
+						),
 					];
 				}
 				else if (type.IsEnginePointer())
@@ -418,28 +406,28 @@ public readonly struct TypeTreeNodeStruct : IReadOnlyList<TypeTreeNodeStruct>, I
 			case 0:
 				return FromSerializableType(field.Type, field.Name, field.Align, out anyChildUsesAlignBytes);
 			case 1:
+			{
+				// Note: treatment of alignment is incorrect.
+				// In particular, this code treats field.Align as shared between the array and its elements.
+				// This is certainly not correct, but fixing it to store separate would require changing the code in a bunch of places.
+				// Also, alignment is not important for the current use case. I just included it to lay the groundwork for future use.
+
+				TypeTreeNodeStruct sizeNode = new("int", "size", 1, TransferMetaFlags.NoTransferFlags, []);
+				TypeTreeNodeStruct dataNode = FromSerializableType(field.Type, "data", field.Align, out anyChildUsesAlignBytes);
+				anyChildUsesAlignBytes |= field.Align;
+
+				TransferMetaFlags metaFlag = TransferMetaFlags.NoTransferFlags;
+				if (field.Align)
 				{
-					// Note: treatment of alignment is incorrect.
-					// In particular, this code treats field.Align as shared between the array and its elements.
-					// This is certainly not correct, but fixing it to store separate would require changing the code in a bunch of places.
-					// Also, alignment is not important for the current use case. I just included it to lay the groundwork for future use.
-
-					TypeTreeNodeStruct sizeNode = new("int", "size", 1, TransferMetaFlags.NoTransferFlags, []);
-					TypeTreeNodeStruct dataNode = FromSerializableType(field.Type, "data", field.Align, out anyChildUsesAlignBytes);
-					anyChildUsesAlignBytes |= field.Align;
-
-					TransferMetaFlags metaFlag = TransferMetaFlags.NoTransferFlags;
-					if (field.Align)
-					{
-						metaFlag |= TransferMetaFlags.AlignBytes;
-					}
-					if (anyChildUsesAlignBytes)
-					{
-						metaFlag |= TransferMetaFlags.AnyChildUsesAlignBytes;
-					}
-
-					return new("Array", field.Name, 0, metaFlag, [sizeNode, dataNode]);
+					metaFlag |= TransferMetaFlags.AlignBytes;
 				}
+				if (anyChildUsesAlignBytes)
+				{
+					metaFlag |= TransferMetaFlags.AnyChildUsesAlignBytes;
+				}
+
+				return new("Array", field.Name, 0, metaFlag, [sizeNode, dataNode]);
+			}
 			case 2:
 				throw new NotImplementedException("Array depth 2 is not implemented.");
 			default:
@@ -529,7 +517,8 @@ public readonly struct TypeTreeNodeStruct : IReadOnlyList<TypeTreeNodeStruct>, I
 
 		if (list[^1].Value is null)
 		{
-			return list[^2].Value ?? throw new ArgumentException("Second to last element should never be null when the last element is null.", nameof(list));
+			return list[^2].Value
+				?? throw new ArgumentException("Second to last element should never be null when the last element is null.", nameof(list));
 		}
 		else
 		{

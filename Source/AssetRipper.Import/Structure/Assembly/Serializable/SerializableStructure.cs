@@ -24,7 +24,8 @@ public sealed class SerializableStructure : UnityAssetBase, IDeepCloneable
 		Fields = new SerializableValue[type.Fields.Count];
 	}
 
-	internal SerializableStructure(SerializableType type, int depth, UnityVersion version) : this(type, depth)
+	internal SerializableStructure(SerializableType type, int depth, UnityVersion version)
+		: this(type, depth)
 	{
 		Version = version;
 	}
@@ -64,7 +65,9 @@ public sealed class SerializableStructure : UnityAssetBase, IDeepCloneable
 			}
 		}
 	}
+
 	public override void WriteEditor(AssetWriter writer) => Write(writer);
+
 	public override void WriteRelease(AssetWriter writer) => Write(writer);
 
 	public override void WalkEditor(AssetWalker walker)
@@ -95,8 +98,10 @@ public sealed class SerializableStructure : UnityAssetBase, IDeepCloneable
 			walker.ExitAsset(this);
 		}
 	}
+
 	//For now, only the editor version is implemented.
 	public override void WalkRelease(AssetWalker walker) => WalkEditor(walker);
+
 	public override void WalkStandard(AssetWalker walker) => WalkEditor(walker);
 
 	public override IEnumerable<(string, PPtr)> FetchDependencies()
@@ -118,6 +123,11 @@ public sealed class SerializableStructure : UnityAssetBase, IDeepCloneable
 
 	private bool IsAvailable(in SerializableType.Field field)
 	{
+		// A type tree already describes a finite serialized layout; script recursion limits do not apply.
+		if (Type is TypeTrees.SerializableTreeType)
+		{
+			return true;
+		}
 		if (Depth <= GetMaxDepthLevel(Version))
 		{
 			return true;
@@ -154,12 +164,18 @@ public sealed class SerializableStructure : UnityAssetBase, IDeepCloneable
 
 	private static void LogMonoBehaviourMismatch(SerializableStructure structure, int actual, int expected)
 	{
-		Logger.Error(LogCategory.Import, $"Unable to read MonoBehaviour Structure, because script {structure} layout mismatched binary content (read {actual} bytes, expected {expected} bytes).");
+		Logger.Error(
+			LogCategory.Import,
+			$"Unable to read MonoBehaviour Structure, because script {structure} layout mismatched binary content (read {actual} bytes, expected {expected} bytes)."
+		);
 	}
 
 	private static void LogMonoBehaviorReadException(SerializableStructure structure, Exception ex)
 	{
-		Logger.Error(LogCategory.Import, $"Unable to read MonoBehaviour Structure, because script {structure} layout mismatched binary content ({ex.GetType().Name}).");
+		Logger.Error(
+			LogCategory.Import,
+			$"Unable to read MonoBehaviour Structure, because script {structure} layout mismatched binary content ({ex.GetType().Name})."
+		);
 	}
 
 	public int Depth { get; }

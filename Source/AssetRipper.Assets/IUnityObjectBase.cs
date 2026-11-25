@@ -11,22 +11,27 @@ public interface IUnityObjectBase : IUnityAssetBase
 	/// The key information about the location of this asset.
 	/// </summary>
 	AssetInfo AssetInfo { get; }
+
 	/// <summary>
 	/// The native class ID number of this object.
 	/// </summary>
 	int ClassID { get; }
+
 	/// <summary>
 	/// The native class name of this object.
 	/// </summary>
 	string ClassName { get; }
+
 	/// <summary>
 	/// The <see cref="AssetCollection"/> this object belongs to.
 	/// </summary>
 	AssetCollection Collection { get; }
+
 	/// <summary>
 	/// The <see cref="AssetInfo.PathID"/> of this object within <see cref="Collection"/>.
 	/// </summary>
 	long PathID { get; }
+
 	/// <summary>
 	/// The original path of this object, if known.
 	/// </summary>
@@ -35,6 +40,7 @@ public interface IUnityObjectBase : IUnityAssetBase
 	/// This will never be the empty string.
 	/// </remarks>
 	string? OriginalPath { get; set; }
+
 	/// <summary>
 	/// The original directory of this object, if known.
 	/// </summary>
@@ -43,6 +49,7 @@ public interface IUnityObjectBase : IUnityAssetBase
 	/// This will never be the empty string.
 	/// </remarks>
 	string? OriginalDirectory { get; set; }
+
 	/// <summary>
 	/// The original file name of this object, if known.
 	/// </summary>
@@ -50,6 +57,7 @@ public interface IUnityObjectBase : IUnityAssetBase
 	/// This will never be the empty string.
 	/// </remarks>
 	string? OriginalName { get; set; }
+
 	/// <summary>
 	/// The original file extension of this object, if known.
 	/// </summary>
@@ -57,6 +65,7 @@ public interface IUnityObjectBase : IUnityAssetBase
 	/// This will never be the empty string.
 	/// </remarks>
 	string? OriginalExtension { get; set; }
+
 	/// <summary>
 	/// The path of this object, if chosen.
 	/// </summary>
@@ -65,6 +74,7 @@ public interface IUnityObjectBase : IUnityAssetBase
 	/// This will never be the empty string.
 	/// </remarks>
 	string? OverridePath { get; set; }
+
 	/// <summary>
 	/// The directory of this object, if chosen.
 	/// </summary>
@@ -73,6 +83,7 @@ public interface IUnityObjectBase : IUnityAssetBase
 	/// This will never be the empty string.
 	/// </remarks>
 	string? OverrideDirectory { get; set; }
+
 	/// <summary>
 	/// The file name of this object, if chosen.
 	/// </summary>
@@ -80,6 +91,7 @@ public interface IUnityObjectBase : IUnityAssetBase
 	/// This will never be the empty string.
 	/// </remarks>
 	string? OverrideName { get; set; }
+
 	/// <summary>
 	/// The file extension of this object, if chosen.
 	/// </summary>
@@ -87,6 +99,7 @@ public interface IUnityObjectBase : IUnityAssetBase
 	/// This will never be the empty string.
 	/// </remarks>
 	string? OverrideExtension { get; set; }
+
 	/// <summary>
 	/// The name of the asset bundle this object belongs to, if known.
 	/// </summary>
@@ -94,10 +107,14 @@ public interface IUnityObjectBase : IUnityAssetBase
 	/// This will never be the empty string.
 	/// </remarks>
 	string? AssetBundleName { get; set; }
+
 	/// <summary>
 	/// The primary asset that this object is associated with, if any.
 	/// </summary>
 	IUnityObjectBase? MainAsset { get; set; }
+
+	/// <summary>The complete source object before conversion to a stock Unity layout, when supplied by an importer.</summary>
+	IUnityObjectBase? SourceAsset { get; set; }
 
 	/// <summary>
 	/// Get the best directory for this object, relative to the project root.
@@ -181,6 +198,7 @@ public interface IUnityObjectBase : IUnityAssetBase
 		}
 	}
 }
+
 public static class UnityObjectBaseExtensions
 {
 	public static void Read(this IUnityObjectBase asset, ref EndianSpanReader reader) => asset.Read(ref reader, asset.Collection.Flags);

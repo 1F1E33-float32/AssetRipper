@@ -55,7 +55,8 @@ public sealed class PrimaryContentExporter
 		this.gameData = gameData;
 	}
 
-	public void RegisterHandler<T>(IContentExtractor handler, bool allowInheritance = true) where T : IUnityObjectBase
+	public void RegisterHandler<T>(IContentExtractor handler, bool allowInheritance = true)
+		where T : IUnityObjectBase
 	{
 		exporters.OverrideHandler(typeof(T), handler, allowInheritance);
 	}
@@ -120,9 +121,13 @@ public sealed class PrimaryContentExporter
 
 		RegisterHandler<IAudioClip>(new AudioContentExtractor());
 
-		RegisterHandler<IImageTexture>(new TextureExporter(settings.ExportSettings.ImageExportFormat, settings.ExportSettings.PreferOriginalTextureExtension));
+		RegisterHandler<IImageTexture>(
+			new TextureExporter(settings.ExportSettings.ImageExportFormat, settings.ExportSettings.PreferOriginalTextureExtension)
+		);
 
-		RegisterHandler<IMonoScript>(new ScriptContentExtractor(gameData.AssemblyManager, settings.ExportSettings.ScriptLanguageVersion.ToCSharpLanguageVersion()));
+		RegisterHandler<IMonoScript>(
+			new ScriptContentExtractor(gameData.AssemblyManager, settings.ExportSettings.ScriptLanguageVersion.ToCSharpLanguageVersion())
+		);
 
 		// Deleted assets
 		// This must be the last handler
@@ -131,6 +136,7 @@ public sealed class PrimaryContentExporter
 
 	public void Export(GameBundle fileCollection, FullConfiguration settings, FileSystem fileSystem)
 	{
+		SourceAssetExporter.Export(fileCollection, settings.ExportRootPath, fileSystem);
 		List<ExportCollectionBase> collections = CreateCollections(fileCollection);
 
 		for (int i = 0; i < collections.Count; i++)
@@ -190,7 +196,8 @@ public sealed class PrimaryContentExporter
 		throw new Exception($"There is no exporter that can handle '{asset}'");
 	}
 
-	private void RegisterEmptyHandler<T>() where T : IUnityObjectBase
+	private void RegisterEmptyHandler<T>()
+		where T : IUnityObjectBase
 	{
 		RegisterHandler<T>(EmptyContentExtractor.Instance);
 	}
