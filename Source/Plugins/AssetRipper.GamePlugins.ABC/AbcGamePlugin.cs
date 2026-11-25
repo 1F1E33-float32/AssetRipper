@@ -53,7 +53,7 @@ public sealed class AbcGamePlugin : IGameImportPlugin
 			string? metadata = Directory.EnumerateFiles(_root, "global-metadata.dat", SearchOption.AllDirectories).FirstOrDefault();
 			if (metadata is null)
 				throw new FileNotFoundException("ABC global-metadata.dat was not found under the game directory.");
-			IL2CppManager manager = new(_ => { });
+			IL2CppManager manager = new(_ => { }, AbcScriptSerialization.ShouldSerializeField);
 			try
 			{
 				manager.Initialize(binary, metadata, LocalFileSystem.Instance, "ABC_CN_Windows_0.75.2");

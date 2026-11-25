@@ -166,11 +166,8 @@ public sealed class AbcArchive : GameArchive
 			ObjectInfo item = original;
 			typeTrees.Apply(ref item);
 			// Resource paths are absent from the player tree; the archive relation supplies them.
-			if (item.TypeID is 28 or 43)
-			{
-				item.SourceResourcePath = image?.Name;
-				item.SourceResourceSize = image?.Length;
-			}
+			item.SourceResourcePath = image?.Name;
+			item.SourceResourceSize = image?.Length;
 			builder.Objects.Add(item);
 		}
 		SerializedFile result = builder.Build();
