@@ -11,5 +11,6 @@
     />
     <InternalsVisibleTo Include="AssetRipper.Il2CppInspector" />
     <InternalsVisibleTo Include="AssetRipper.Il2CppInspector.Plugin.ABC_CN_Windows_0.75.2" />
+    <InternalsVisibleTo Include="AssetRipper.Il2CppInspector.Plugin.AzurPromilia_xx_Windows_x.x.x" />
   </ItemGroup>
 </Project>

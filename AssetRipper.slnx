@@ -63,9 +63,9 @@
   </Folder>
   <Folder Name="/Source/Plugins/">
     <Project Path="Source/Plugins/AssetRipper.GamePlugins.ABC/AssetRipper.GamePlugins.ABC.csproj" />
-    <Project Path="Source/Plugins/AssetRipper.Il2CppInspector.Plugin.ABC_CN_Windows_0.75.2/AssetRipper.Il2CppInspector.Plugin.ABC_CN_Windows_0.75.2.csproj" />
+    <Project Path="Source/Plugins/AssetRipper.GamePlugins.AzurPromilia/AssetRipper.GamePlugins.AzurPromilia.csproj" />
   </Folder>
-  <Folder Name="/Source/Il2CppInspector/">
+  <Folder Name="/Source/AssetRipper.Il2CppInspector/">
     <Project Path="Source/AssetRipper.Il2CppInspector/AssetRipper.Il2CppInspector.csproj" />
     <Project Path="Source/AssetRipper.Il2CppInspector/Common/Bin2Object/AssetRipper.Il2CppInspector.Bin2Object.csproj" />
     <Project Path="Source/AssetRipper.Il2CppInspector/Common/Il2CppInspector.Common/AssetRipper.Il2CppInspector.Core.csproj" />
@@ -122,4 +122,10 @@
   <Project Path="Source/AssetRipper.Yaml.Tests/AssetRipper.Yaml.Tests.csproj" />
   <Project Path="Source/AssetRipper.Yaml/AssetRipper.Yaml.csproj" />
   <Project Path="Source/UnityEngine/UnityEngine.csproj" />
+  <Folder Name="/Source/AssetRipper.Il2CppInspector/Plugins/ABC/">
+    <Project Path="Source/AssetRipper.Il2CppInspector/Plugins/ABC_CN_Windows_0.75.2/AssetRipper.Il2CppInspector.Plugin.ABC_CN_Windows_0.75.2.csproj" />
+  </Folder>
+  <Folder Name="/Source/AssetRipper.Il2CppInspector/Plugins/AzurPromilia/">
+    <Project Path="Source/AssetRipper.Il2CppInspector/Plugins/AzurPromilia_xx_Windows_x.x.x/AssetRipper.Il2CppInspector.Plugin.AzurPromilia_xx_Windows_x.x.x.csproj" />
+  </Folder>
 </Solution>
