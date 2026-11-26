@@ -1,11 +1,11 @@
+using System.Diagnostics;
+using System.Numerics;
+using System.Runtime.CompilerServices;
 using AssetRipper.IO.Endian;
 using AssetRipper.IO.Files.SerializedFiles.IO;
 using AssetRipper.IO.Files.SerializedFiles.Parser;
 using AssetRipper.IO.Files.Streams;
 using AssetRipper.IO.Files.Streams.Smart;
-using System.Diagnostics;
-using System.Numerics;
-using System.Runtime.CompilerServices;
 
 namespace AssetRipper.IO.Files.SerializedFiles;
 
@@ -88,7 +88,10 @@ public sealed class SerializedFile : FileBase
 		return NameFixed;
 	}
 
-	public override void Read(SmartStream stream)
+	public override void Read(SmartStream stream) => Read(stream, null);
+
+	/// <summary>Reads every object descriptor, optionally loading payloads only for selected class IDs.</summary>
+	public void Read(SmartStream stream, Predicate<int>? readObjectData)
 	{
 		SerializedFileHeader header = new();
 		header.Read(stream);
@@ -97,7 +100,7 @@ public sealed class SerializedFile : FileBase
 			stream.Position = header.FileSize - header.MetadataSize;
 		}
 		SerializedFileMetadata metadata = new();
-		metadata.Read(stream, header);
+		metadata.Read(stream, header, readObjectData);
 
 		SetProperties(header, metadata);
 	}
@@ -120,11 +123,7 @@ public sealed class SerializedFile : FileBase
 	public override void Write(Stream stream)
 	{
 		long initialPosition = stream.Position;
-		SerializedFileHeader header = new()
-		{
-			Version = Generation,
-			Endianess = EndianType == EndianType.BigEndian,
-		};
+		SerializedFileHeader header = new() { Version = Generation, Endianess = EndianType == EndianType.BigEndian };
 		header.Write(stream);
 
 		using SerializedWriter writer = new(stream, EndianType, Generation, Version);

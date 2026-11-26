@@ -37,7 +37,8 @@ public sealed class TypeTree : IEquatable<TypeTree?>
 			else
 			{
 				StringBuffer = new byte[stringBufferSize];
-				reader.Read(StringBuffer, 0, StringBuffer.Length);
+				// Lazy bundle streams can return a partial read at a compressed block boundary.
+				reader.BaseStream.ReadExactly(StringBuffer);
 			}
 			SetNamesFromBuffer();
 		}

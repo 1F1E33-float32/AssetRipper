@@ -5,7 +5,8 @@ namespace AssetRipper.IO.Files.SerializedFiles.IO;
 
 internal sealed class SerializedReader : EndianReader
 {
-	public SerializedReader(Stream stream, EndianType endianess, FormatVersion generation) : base(stream, endianess)
+	public SerializedReader(Stream stream, EndianType endianess, FormatVersion generation)
+		: base(stream, endianess)
 	{
 		Generation = generation;
 	}
@@ -36,7 +37,8 @@ internal sealed class SerializedReader : EndianReader
 		return array;
 	}
 
-	public T[] ReadSerializedTypeArray<T>(bool hasTypeTree) where T : SerializedTypeBase, new()
+	public T[] ReadSerializedTypeArray<T>(bool hasTypeTree)
+		where T : SerializedTypeBase, new()
 	{
 		int count = ReadInt32();
 		T[] array = new T[count];
@@ -63,6 +65,7 @@ internal sealed class SerializedReader : EndianReader
 	}
 
 	public FormatVersion Generation { get; }
+	public Predicate<int>? ReadObjectData { get; init; }
 
 	/// <summary>
 	/// Gets set after reading the metadata version

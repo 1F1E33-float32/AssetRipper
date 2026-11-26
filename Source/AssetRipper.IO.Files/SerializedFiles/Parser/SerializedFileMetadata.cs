@@ -10,6 +10,7 @@ public sealed class SerializedFileMetadata
 	/// Less than 3.5.0
 	/// </summary>
 	public static bool HasEndian(FormatVersion generation) => generation < FormatVersion.Unknown_9;
+
 	/// <summary>
 	/// Less than 3.5.0
 	/// </summary>
@@ -19,36 +20,42 @@ public sealed class SerializedFileMetadata
 	/// 3.0.0b and greater
 	/// </summary>
 	public static bool HasSignature(FormatVersion generation) => generation >= FormatVersion.Unknown_7;
+
 	/// <summary>
 	/// 3.0.0 and greater
 	/// </summary>
 	public static bool HasPlatform(FormatVersion generation) => generation >= FormatVersion.Unknown_8;
+
 	/// <summary>
 	/// 5.0.0Unk2 and greater
 	/// </summary>
 	public static bool HasEnableTypeTree(FormatVersion generation) => generation >= FormatVersion.HasTypeTreeHashes;
+
 	/// <summary>
 	/// 3.0.0b to 4.x.x
 	/// </summary>
 	public static bool HasLongFileID(FormatVersion generation) => generation >= FormatVersion.Unknown_7 && generation < FormatVersion.Unknown_14;
+
 	/// <summary>
 	/// 5.0.0Unk0 and greater
 	/// </summary>
 	public static bool HasScriptTypes(FormatVersion generation) => generation >= FormatVersion.HasScriptTypeIndex;
+
 	/// <summary>
 	/// 1.2.0 and greater
 	/// </summary>
 	public static bool HasUserInformation(FormatVersion generation) => generation >= FormatVersion.Unknown_5;
+
 	/// <summary>
 	/// 2019.2 and greater
 	/// </summary>
 	public static bool HasRefTypes(FormatVersion generation) => generation >= FormatVersion.SupportsRefObject;
 
-	public void Read(SmartStream stream, SerializedFileHeader header)
+	public void Read(SmartStream stream, SerializedFileHeader header, Predicate<int>? readObjectData = null)
 	{
 		bool swapEndianess = ReadSwapEndianess(stream, header);
 		EndianType endianess = swapEndianess ? EndianType.BigEndian : EndianType.LittleEndian;
-		using SerializedReader reader = new SerializedReader(stream, endianess, header.Version);
+		using SerializedReader reader = new SerializedReader(stream, endianess, header.Version) { ReadObjectData = readObjectData };
 		Read(reader, header.DataOffset);
 	}
 
@@ -177,6 +184,7 @@ public sealed class SerializedFileMetadata
 	public BuildTarget TargetPlatform { get; set; }
 	public bool EnableTypeTree { get; set; }
 	public SerializedType[] Types { get; set; } = [];
+
 	/// <summary>
 	/// Indicate that <see cref="ObjectInfo.FileID"/> is 8 bytes size<br/>
 	/// Serialized files with this field enabled supposedly don't exist

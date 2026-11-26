@@ -141,9 +141,9 @@ public sealed class AbcArchive : GameArchive
 			.Select(n => index.Entries[n]);
 	}
 
-	public override FileBase ReadEntry(GameArchiveEntry entry)
+	public override FileBase ReadEntry(GameArchiveEntry entry, Predicate<int>? readObjectData = null)
 	{
-		FileBase file = base.ReadEntry(entry);
+		FileBase file = base.ReadEntry(entry, readObjectData);
 		if (file is not SerializedFile serialized)
 			return file;
 		GameArchiveEntry? image = GetResources(entry).LastOrDefault();
@@ -164,7 +164,10 @@ public sealed class AbcArchive : GameArchive
 		foreach (ObjectInfo original in serialized.Objects)
 		{
 			ObjectInfo item = original;
-			typeTrees.Apply(ref item);
+			if (readObjectData is null || readObjectData(item.TypeID))
+			{
+				typeTrees.Apply(ref item);
+			}
 			// Resource paths are absent from the player tree; the archive relation supplies them.
 			item.SourceResourcePath = image?.Name;
 			item.SourceResourceSize = image?.Length;
@@ -191,6 +194,15 @@ public sealed class AbcArchive : GameArchive
 		{
 			_disposed = true;
 			_cachedBlock = null;
+		}
+	}
+
+	public override void ReleaseCachedData()
+	{
+		lock (_gate)
+		{
+			_cachedBlock = null;
+			_cachedBlockIndex = -1;
 		}
 	}
 

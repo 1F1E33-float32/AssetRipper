@@ -73,15 +73,6 @@ public struct ObjectInfo
 		// Size of the object data.
 		int byteSize = reader.ReadInt32();
 
-		// Read object data
-		{
-			long currentPosition = reader.BaseStream.Position;
-			long dataPosition = dataOffset + byteStart;
-			reader.BaseStream.Position = dataPosition;
-			ObjectData = reader.ReadBytes(byteSize);
-			reader.BaseStream.Position = currentPosition;
-		}
-
 		if (HasSerializedTypeIndex(reader.Generation))
 		{
 			SerializedTypeIndex = reader.ReadInt32();
@@ -130,6 +121,25 @@ public struct ObjectInfo
 			{
 				Stripped = Type.IsStrippedType;
 			}
+		}
+		if (
+			dataOffset < 0
+			|| byteStart < 0
+			|| byteSize < 0
+			|| dataOffset > reader.BaseStream.Length
+			|| byteStart > reader.BaseStream.Length - dataOffset
+			|| byteSize > reader.BaseStream.Length - dataOffset - byteStart
+		)
+		{
+			throw new InvalidDataException("Serialized object payload exceeds file bounds.");
+		}
+		if (reader.ReadObjectData is null || reader.ReadObjectData(TypeID))
+		{
+			long currentPosition = reader.BaseStream.Position;
+			reader.BaseStream.Position = dataOffset + byteStart;
+			ObjectData = new byte[byteSize];
+			reader.BaseStream.ReadExactly(ObjectData);
+			reader.BaseStream.Position = currentPosition;
 		}
 	}
 
