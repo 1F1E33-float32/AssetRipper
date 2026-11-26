@@ -3,6 +3,10 @@
   <PropertyGroup>
     <IsAotCompatible>false</IsAotCompatible>
     <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
+    <UnicornPackageVersion>2.1.4-longjmp.2</UnicornPackageVersion>
+    <_UnicornPackageDirectory>$(MSBuildThisFileDirectory)../../packages</_UnicornPackageDirectory>
+    <_UnicornPackageFile>$(_UnicornPackageDirectory)/UnicornEngine.Unicorn.$(UnicornPackageVersion).nupkg</_UnicornPackageFile>
+    <RestoreAdditionalProjectSources>$(RestoreAdditionalProjectSources);$(_UnicornPackageDirectory)</RestoreAdditionalProjectSources>
     <PackageLicenseExpression>AGPL-3.0-only</PackageLicenseExpression>
   </PropertyGroup>
 </Project>

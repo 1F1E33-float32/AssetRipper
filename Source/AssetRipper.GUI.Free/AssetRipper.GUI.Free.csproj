@@ -17,7 +17,7 @@
 	<ItemGroup>
 		<ProjectReference Include="..\AssetRipper.GUI.Avalonia\AssetRipper.GUI.Avalonia.csproj" />
 		<ProjectReference Include="../AssetRipper.Tools.TestCli/AssetRipper.Tools.TestCli.csproj" ReferenceOutputAssembly="false" Private="false" />
-		<GamePluginProjects Include="../Plugins/*/*.csproj" />
+		<GamePluginProjects Include="../Plugins/*/*.csproj;../AssetRipper.Il2CppInspector/Plugins/*/*.csproj" />
 		<ProjectReference
 			Include="@(GamePluginProjects)"
 			ReferenceOutputAssembly="false"

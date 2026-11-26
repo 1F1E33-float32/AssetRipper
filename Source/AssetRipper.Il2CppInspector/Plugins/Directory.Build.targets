@@ -1,0 +1,49 @@
+<Project>
+  <Import Project="../../Plugins/Directory.Build.targets" />
+  <UsingTask
+    TaskName="PublishDownloadedUnicornPackage"
+    TaskFactory="RoslynCodeTaskFactory"
+    AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll"
+  >
+    <ParameterGroup>
+      <SourceFile ParameterType="System.String" Required="true" />
+      <DestinationFile ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO" />
+      <Code Type="Fragment" Language="cs">
+        <![CDATA[
+        try
+        {
+            File.Move(SourceFile, DestinationFile);
+        }
+        catch (IOException) when (File.Exists(DestinationFile))
+        {
+            // Another restore has already published its completed download.
+            File.Delete(SourceFile);
+        }
+      ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+  <Target
+    Name="DownloadUnicornPackage"
+    BeforeTargets="CollectPackageReferences"
+    Condition="'@(PackageReference->WithMetadataValue('Identity', 'UnicornEngine.Unicorn'))' != '' and !Exists('$(_UnicornPackageFile)')"
+  >
+    <PropertyGroup>
+      <_UnicornDownloadFile>$(_UnicornPackageFile).$([System.Guid]::NewGuid()).download</_UnicornDownloadFile>
+    </PropertyGroup>
+    <DownloadFile
+      SourceUrl="https://github.com/1F1E33-float32/unicorn/releases/download/v$(UnicornPackageVersion)/UnicornEngine.Unicorn.$(UnicornPackageVersion).nupkg"
+      DestinationFolder="$(_UnicornPackageDirectory)"
+      DestinationFileName="$([System.IO.Path]::GetFileName('$(_UnicornDownloadFile)'))"
+      Retries="2"
+    />
+    <PublishDownloadedUnicornPackage SourceFile="$(_UnicornDownloadFile)" DestinationFile="$(_UnicornPackageFile)" />
+    <OnError ExecuteTargets="DeleteUnicornDownload" />
+  </Target>
+  <Target Name="DeleteUnicornDownload">
+    <Delete Files="$(_UnicornDownloadFile)" />
+  </Target>
+</Project>

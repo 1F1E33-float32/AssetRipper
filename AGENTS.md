@@ -7,10 +7,11 @@
 - `AssetRipper.slnx`：.NET 11 解决方案；`global.json` 配置 `Microsoft.Testing.Platform` 作为测试运行器。
 - 根 `Directory.Build.props` 统一设置 `TargetFramework=net11.0`、`Nullable=enable`、`LangVersion=latest`、`IsAotCompatible=true`、`CheckForOverflowUnderflow=true`、`DebugType=embedded`、`SatelliteResourceLanguages=en`、`IsPublishable=false` 及全局 `Using`；项目文件只声明差异，不重复引入全局命名空间。
 - Roslyn 源生成器项目（`AssetRipper.GUI.Licensing.SourceGenerator`、`AssetRipper.GUI.Localizations.SourceGenerator`、`AssetRipper.Processing.SourceGenerator`、`AssetRipper.SourceGenerated.Extensions.SourceGenerator`、`AssetRipper.Il2CppInspector.VersionedSerialization.Generator`）目标为 `netstandard2.0`，只能使用该框架可用 API；修改 `VersionedSerialization.Generator` 诊断 ID 时同步更新其 `AnalyzerReleases.Unshipped.md`。
+- IL2CPP 模拟器使用 `UnicornEngine.Unicorn`，版本在 Il2CppInspector 的 `Directory.Build.props` 统一声明；插件还原时自动下载预编译 NuGet 包至根 `packages/`，不提交包文件。
 - `Source/AssetRipper.Il2CppInspector/Directory.Build.props` 覆盖 `IsAotCompatible=false`、`CheckForOverflowUnderflow=false`、`PackageLicenseExpression=AGPL-3.0-only`。
 - 启用 `UseArtifactsOutput`：编译输出在 `artifacts/bin/<项目名>/<配置>[_<rid>]/`，中间与还原文件在 `artifacts/obj/<项目名>/`；仅 `AssetRipper.GUI.Free`（程序集名 `AssetRipper`）设 `IsPublishable=true`，发布至 `artifacts/publish/`（发布前会清空该目录）。可用 `-p:ArtifactsPath=<绝对路径>` 覆盖产物根目录。
 - `Directory.Build.targets` 仅保留 Windows / Linux / macOS 的 `x64` / `arm64` 原生运行时资产；`dotnet clean AssetRipper.slnx` 清理所有配置与 RID 的 build / publish 产物，同时保留 `artifacts/obj/<项目名>/` 根部的 NuGet 还原文件。
-- 插件打包由 `Source/Plugins/Directory.Build.targets` 和 `Source/AssetRipper.GUI.Free/GamePlugins.targets` 自动完成：插件 DLL 放入 `plugins/`，公共托管依赖放在宿主目录根部（不重复复制），原生库集中放入 `runtimes/<rid>/native/`。
+- 插件打包由两个插件目录的 `Directory.Build.targets` 和 `Source/AssetRipper.GUI.Free/GamePlugins.targets` 自动完成：插件 DLL 放入 `plugins/`，公共托管依赖放在宿主目录根部（不重复复制），原生库集中放入 `runtimes/<rid>/native/`。
 
 ## 2. 目录与模块职责
 
@@ -24,16 +25,17 @@
 | `Source/AssetRipper.GUI.Avalonia`、`Source/AssetRipper.GUI.Free` | Avalonia 桌面 UI 与宿主入口（初始化 `PluginAssemblyLoader` 后启动 GUI）。 |
 | `Source/AssetRipper.GUI.Licensing*`、`Source/AssetRipper.GUI.Localizations*` | 许可证与多语言资源（源文件在 `Localizations/`）。 |
 | `Source/AssetRipper.Il2CppInspector` | 精简集成的 Il2CppInspector 运行库与 `Il2CppLoader`，直接输出反射模型供 `AssetRipper.Import` 消费，不生成 DummyDll。 |
-| `Source/Plugins` | 游戏归档导入插件（`AssetRipper.GamePlugins.*`）与 IL2CPP 解码插件（`AssetRipper.Il2CppInspector.Plugin.*`）。 |
+| `Source/Plugins` | 游戏归档导入插件（`AssetRipper.GamePlugins.*`）。 |
+| `Source/AssetRipper.Il2CppInspector/Plugins/<GameId>` | IL2CPP 解码插件（`AssetRipper.Il2CppInspector.Plugin.*`），目录使用 `<GameId>` 命名。 |
 | `Source/*.Tests`、`Source/AssetRipper.Tools.*`、`Source/AssetRipper.AssemblyDumper*`、`Source/AssetRipper.DocExtraction*` | TUnit 测试、诊断工具与类型定义生成工具。 |
 
 ## 3. 模块规范
 
-- **分层原则**：游戏专属归档格式、解密与 IL2CPP 变体留在 `Source/Plugins/`；多游戏共用的 IL2CPP 插件辅助代码放入 `Source/AssetRipper.Il2CppInspector/Plugins/Shared/<family>/`；通用能力下沉到核心项目，核心项目不硬编码特定游戏的密钥、地址、魔数或布局。
-- **插件（`Source/Plugins/`）**：
-  - 统一设 `EnableDynamicLoading=true`、`IsAotCompatible=false`，加入 `AssetRipper.slnx` 的 `/Source/Plugins/`；`AssetRipper.GUI.Free` 通过 `../Plugins/*/*.csproj` 自动打包，无需改动宿主项目。
+- **分层原则**：游戏专属归档格式与解密留在 `Source/Plugins/`，IL2CPP 变体留在 `Source/AssetRipper.Il2CppInspector/Plugins/<GameId>/`；多游戏共用的 IL2CPP 插件辅助代码放入 `Source/AssetRipper.Il2CppInspector/Plugins/Shared/<family>/`；通用能力下沉到核心项目，核心项目不硬编码特定游戏的密钥、地址、魔数或布局。
+- **插件**：
+  - 统一设 `EnableDynamicLoading=true`、`IsAotCompatible=false`，加入 `AssetRipper.slnx` 的对应目录；`AssetRipper.GUI.Free` 通过 `../Plugins/*/*.csproj` 和 `../AssetRipper.Il2CppInspector/Plugins/*/*.csproj` 自动打包，无需改动宿主项目。
   - 游戏导入插件：项目名 `AssetRipper.GamePlugins.<Game>`，实现公开无参构造的 `IGameImportPlugin`，返回 `GameImportSession` 与延迟解码的 `GameArchive`；`Id` 必须唯一。
-  - IL2CPP 解码插件：项目名 `AssetRipper.Il2CppInspector.Plugin.<GameId>`（`NAME_REGION_PLATFORM_VERSION`），设 `CheckForOverflowUnderflow=false`，实现 `GamePlugin`；访问 Core 内部成员时在 `AssetRipper.Il2CppInspector.Core.csproj` 中添加 `InternalsVisibleTo`，不为插件把成员改为 `public`。
+  - IL2CPP 解码插件：项目名 `AssetRipper.Il2CppInspector.Plugin.<GameId>`（`NAME_REGION_PLATFORM_VERSION`），从 Il2CppInspector 的 `Directory.Build.props` 继承 `CheckForOverflowUnderflow=false`、`IsAotCompatible=false` 和 AGPL 许可证，实现 `GamePlugin`；访问 Core 内部成员时在 `AssetRipper.Il2CppInspector.Core.csproj` 中添加 `InternalsVisibleTo`，不为插件把成员改为 `public`。
   - 二进制/归档解析必须校验签名、魔数、版本、长度、偏移和索引范围；异常数据抛 `InvalidDataException`，不支持的版本或变体抛 `NotSupportedException`。
 - **GUI 与日志**：
   - `AssetRipper.GUI.Free/Program.cs` 必须先调用 `PluginAssemblyLoader.Initialize()` 再启动 Avalonia，以正确解析 `plugins/` 与 `runtimes/<rid>/native/`。
