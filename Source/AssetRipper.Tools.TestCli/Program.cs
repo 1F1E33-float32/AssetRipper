@@ -24,7 +24,7 @@ internal static class Program
 						+ "testcli --list-games\n"
 						+ $"--threads (-j): concurrent disk archives, default {DefaultThreads}. Entries within each archive are read sequentially.\n"
 						+ "The console shows one shared progress bar; only warnings and errors are logged to log/.\n"
-						+ "Reads each archive entry and asset. Results are written beside the executable under log/.\n"
+						+ "Reads each archive entry and asset. Writes .log and .summary.json reports beside the executable under log/.\n"
 						+ "Exit codes: 0 = all checked items passed; 1 = failures/unknown/unresolved; 2 = setup error; 130 = cancelled."
 				);
 				return 0;
@@ -87,9 +87,6 @@ internal static class Program
 			ScanSummary summary = new() { Threads = threads };
 			try
 			{
-				using TextWriter results = TextWriter.Synchronized(
-					new StreamWriter(prefix + ".jsonl", false, new UTF8Encoding(false)) { AutoFlush = true }
-				);
 				using GameImportSession session = selected.Mount([input]);
 				progress.SetArchiveCount(session.Archives.Count);
 				progress.SetStage(skipScripts ? "Preparing" : "Loading scripts");
@@ -98,7 +95,7 @@ internal static class Program
 				ParallelOptions parallelOptions = new() { MaxDegreeOfParallelism = threads, CancellationToken = cancellation.Token };
 				progress.SetStage("Scanning");
 				// The work item is a complete disk archive. Its collections and decompression cache
-				// belong to one scanner; the report writer and script metadata are shared explicitly.
+				// belong to one scanner; script metadata is shared explicitly.
 				Parallel.ForEach(
 					session.Archives,
 					parallelOptions,
@@ -106,16 +103,7 @@ internal static class Program
 					{
 						using ScanLog.ErrorScope archiveLog = scanLog.BeginArchive();
 						ScanSummary archiveSummary = new();
-						ArchiveScanner scanner = new(
-							assemblies,
-							assemblyGate,
-							archiveLog,
-							results,
-							archiveSummary,
-							progress,
-							skipScripts,
-							cancellation.Token
-						);
+						ArchiveScanner scanner = new(assemblies, assemblyGate, archiveLog, archiveSummary, progress, skipScripts, cancellation.Token);
 						bool completed = false;
 						progress.StartArchive();
 						try

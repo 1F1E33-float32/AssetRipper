@@ -1,4 +1,3 @@
-using System.Text.Json;
 using AssetRipper.Assets;
 using AssetRipper.Assets.Bundles;
 using AssetRipper.Assets.Generics;
@@ -22,7 +21,6 @@ internal sealed class ArchiveScanner(
 	IAssemblyManager assemblies,
 	object assemblyGate,
 	ScanLog.ErrorScope scanLog,
-	TextWriter results,
 	ScanSummary summary,
 	ScanProgress progress,
 	bool skipScripts,
@@ -64,7 +62,6 @@ internal sealed class ArchiveScanner(
 								throw new InvalidDataException($"Read {total} resource bytes; expected {entry.Length}.");
 						}
 						summary.Resources++;
-						WriteResult("resource", "passed", archive.FilePath, entry.Name);
 					}
 					else
 					{
@@ -81,17 +78,6 @@ internal sealed class ArchiveScanner(
 							if (scanLog.Errors != before)
 							{
 								summary.FailedEntries++;
-								WriteResult(
-									"entry",
-									"failed",
-									archive.FilePath,
-									entry.Name,
-									message: "Asset parsing reported errors; see asset results and log."
-								);
-							}
-							else
-							{
-								WriteResult("entry", "loaded", archive.FilePath, entry.Name);
 							}
 						}
 					}
@@ -100,7 +86,6 @@ internal sealed class ArchiveScanner(
 				{
 					summary.FailedEntries++;
 					Logger.Error(LogCategory.Import, $"Failed {archive.FilePath}/{entry.Name}", ex);
-					WriteResult("entry", "failed", archive.FilePath, entry.Name, message: ex.Message);
 				}
 				finally
 				{
@@ -121,7 +106,6 @@ internal sealed class ArchiveScanner(
 		{
 			summary.FailedArchives++;
 			Logger.Error(LogCategory.Import, $"Failed archive {archive.FilePath}", ex);
-			WriteResult("archive", "failed", archive.FilePath, "", message: ex.Message);
 		}
 		finally
 		{
@@ -175,7 +159,6 @@ internal sealed class ArchiveScanner(
 					if (!parsed || scanLog.Errors != before)
 					{
 						status = "failed";
-						message = "MonoBehaviour structure could not be parsed.";
 						summary.FailedAssets++;
 					}
 					else
@@ -188,7 +171,6 @@ internal sealed class ArchiveScanner(
 			else if (asset is IMonoBehaviour { Structure: null })
 			{
 				status = "failed";
-				message = "MonoBehaviour has no parsed structure.";
 				summary.FailedAssets++;
 			}
 			else
@@ -200,7 +182,6 @@ internal sealed class ArchiveScanner(
 		catch (Exception ex) when (ex is not OperationCanceledException)
 		{
 			status = "failed";
-			message = ex.Message;
 			summary.FailedAssets++;
 			Logger.Error(LogCategory.Import, $"Failed {archivePath}/{item.Entry}, PathID {asset.PathID}, {asset.ClassName}", ex);
 		}
@@ -208,36 +189,7 @@ internal sealed class ArchiveScanner(
 		{
 			Logger.Warning(LogCategory.Import, $"{status}: {archivePath}/{item.Entry}, PathID {asset.PathID}, {asset.ClassName}. {message}");
 		}
-		WriteResult("asset", status, archivePath, item.Entry, asset.PathID, asset.ClassID, asset.ClassName, message);
 		progress.FinishAsset(status is "failed" or "unknown" or "unresolved-script");
-	}
-
-	private void WriteResult(
-		string scope,
-		string status,
-		string archive,
-		string entry,
-		long? pathId = null,
-		int? classId = null,
-		string? className = null,
-		string? message = null
-	)
-	{
-		results.WriteLine(
-			JsonSerializer.Serialize(
-				new
-				{
-					scope,
-					status,
-					archive,
-					entry,
-					pathId,
-					classId,
-					className,
-					message,
-				}
-			)
-		);
 	}
 
 	private sealed record PendingAsset(IUnityObjectBase Asset, string Entry, bool HadErrors);

@@ -162,7 +162,7 @@ internal sealed class ScanProgress : IDisposable
 				Console.Write("\r" + new string(' ', Math.Min(previousWidth, Math.Max(0, Console.WindowWidth - 1))) + "\r");
 			}
 			Console.WriteLine(FormatLine());
-			Console.WriteLine($"Reports: {reportPrefix}.summary.json / .jsonl / .log");
+			Console.WriteLine($"Reports: {reportPrefix}.summary.json / .log");
 		}
 	}
 
