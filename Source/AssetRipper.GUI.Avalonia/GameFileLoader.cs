@@ -113,6 +113,8 @@ public static class GameFileLoader
 		return result;
 	}
 
+	internal static object? GetLoadedEntry(GameArchive archive, GameArchiveEntry entry) => LoadedEntries.GetValueOrDefault((archive, entry.Index));
+
 	public static async Task<bool> ExportUnityProjectAsync(string path, Func<string, Task<bool>> confirmDeleteAsync)
 	{
 		if (!IsLoaded || !IsValidExportDirectory(path))

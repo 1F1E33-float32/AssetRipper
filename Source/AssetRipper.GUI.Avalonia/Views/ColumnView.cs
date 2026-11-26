@@ -45,6 +45,7 @@ internal sealed class ColumnView : Grid
 			: null;
 	public int? SelectedIndex => _selectedIndex;
 	public int ItemCount => _filteredItems.Count;
+	public List<BrowserItem> Items => _allItems;
 
 	public event Action<ColumnView, int, BrowserItem, bool>? ItemActivated;
 	public event Action<ColumnView>? ColumnClicked;

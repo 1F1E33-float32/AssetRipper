@@ -60,6 +60,8 @@ public sealed record class ExportSettings
 
 	public string? LanguageCode { get; set; }
 
+	public AssetPathDisplayMode AssetPathDisplayMode { get; set; }
+
 	public void Log()
 	{
 		Logger.Info(LogCategory.General, $"{nameof(AudioExportFormat)}: {AudioExportFormat}");

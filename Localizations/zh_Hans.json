@@ -1,4 +1,12 @@
 {
+    "internal_asset_load_failed": "所选资产加载失败。",
+    "loading_internal_asset": "正在加载 {0}…",
+    "cancel_path_index": "取消索引",
+    "internal_path_index_failed": "内部资源路径索引失败。",
+    "internal_path_index_cancelled": "已取消路径索引。",
+    "internal_paths_ready": "内部资源路径索引完成。",
+    "internal_path_index_progress": "索引路径 · {0} / {1} 个包 · {2} 条路径 · {3} 个失败 · {4}",
+    "indexing_internal_paths": "正在索引内部资源路径…",
     "asset_tab_audio": "音频（Audio）",
     "asset_tab_audio_duration_unknown": "<未知>",
     "asset_tab_audio_pause": "暂停",
@@ -268,5 +276,13 @@
     "all": "全部",
     "enter_search_query": "输入关键词搜索资源。",
     "next": "下一个",
-    "no_results_found": "未找到结果。"
+    "no_results_found": "未找到结果。",
+    "asset_path_display_title": "资产路径显示",
+    "asset_paths_archive_structure": "归档结构（当前方式）",
+    "asset_paths_archive_structure_description": "显示原有的归档、资源集合和资产列表。",
+    "asset_paths_internal": "内部资源路径",
+    "asset_paths_internal_description": "合并所有 AB 的内部资源路径，在根目录统一展示；点击资产时再加载内容。",
+    "assets_without_internal_path": "无内部路径的资产",
+    "interface_and_licenses": "界面与许可证",
+    "settings_import_export_locked": "导入和导出设置仅可在加载文件前修改，显示设置可随时切换。"
 }

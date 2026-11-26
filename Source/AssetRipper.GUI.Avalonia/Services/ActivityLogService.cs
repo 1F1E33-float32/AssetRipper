@@ -7,15 +7,18 @@ internal sealed record ActivityLogEntry(long Sequence, LogType Type, LogCategory
 	public string Text => Category == LogCategory.None ? $"[{Type}] {Message}" : $"[{Type}] [{Category}] {Message}";
 }
 
+internal sealed record ActivityProgress(string Label, double Fraction);
+
 internal sealed record ActivityLogSnapshot(
 	IReadOnlyList<ActivityLogEntry> Entries,
 	int LineCount,
 	int ErrorCount,
 	int WarningCount,
-	string? ActiveJobLabel
+	string? ActiveJobLabel,
+	ActivityProgress? Progress = null
 )
 {
-	public bool IsBusy => ActiveJobLabel is not null;
+	public bool IsBusy => ActiveJobLabel is not null || Progress is not null;
 }
 
 internal sealed class ActivityLogService : ILogger
@@ -29,6 +32,7 @@ internal sealed class ActivityLogService : ILogger
 	private long _nextSequence;
 	private int _errorCount;
 	private int _warningCount;
+	private ActivityProgress? _progress;
 
 	public event Action? Changed;
 
@@ -36,7 +40,7 @@ internal sealed class ActivityLogService : ILogger
 	{
 		lock (_sync)
 		{
-			return new(includeEntries ? _lines.ToArray() : [], _lines.Count, _errorCount, _warningCount, _tasks.LastOrDefault()?.Label);
+			return new(includeEntries ? _lines.ToArray() : [], _lines.Count, _errorCount, _warningCount, _tasks.LastOrDefault()?.Label, _progress);
 		}
 	}
 
@@ -61,6 +65,15 @@ internal sealed class ActivityLogService : ILogger
 	}
 
 	public void SetStatus(string status) => Logger.Info(LogCategory.Avalonia, status);
+
+	public void SetProgress(ActivityProgress? progress)
+	{
+		lock (_sync)
+		{
+			_progress = progress;
+		}
+		Changed?.Invoke();
+	}
 
 	public void ReportError(string message, Exception exception) => Logger.Error(LogCategory.Avalonia, message, exception);
 

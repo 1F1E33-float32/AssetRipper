@@ -1,4 +1,12 @@
 {
+    "internal_asset_load_failed": "所選資產載入失敗。",
+    "loading_internal_asset": "正在載入 {0}…",
+    "cancel_path_index": "取消索引",
+    "internal_path_index_failed": "內部資源路徑索引失敗。",
+    "internal_path_index_cancelled": "已取消路徑索引。",
+    "internal_paths_ready": "內部資源路徑索引完成。",
+    "internal_path_index_progress": "索引路徑 · {0} / {1} 個封包 · {2} 條路徑 · {3} 個失敗 · {4}",
+    "indexing_internal_paths": "正在索引內部資源路徑…",
     "asset_tab_audio": "音訊",
     "asset_tab_audio_duration_unknown": "<長度不明>",
     "asset_tab_audio_pause": "暫停",
@@ -153,5 +161,13 @@
     "asset_tab_video": "影檔",
     "asset_tab_information": "資訊",
     "asset_tab_model": "模型",
-    "all": "全部"
+    "all": "全部",
+    "asset_path_display_title": "資產路徑顯示",
+    "asset_paths_archive_structure": "封存結構（目前方式）",
+    "asset_paths_archive_structure_description": "顯示原有的封存檔、資源集合和資產清單。",
+    "asset_paths_internal": "內部資源路徑",
+    "asset_paths_internal_description": "合併所有 AB 的內部資源路徑，在根目錄統一顯示；點選資產時再載入內容。",
+    "assets_without_internal_path": "無內部路徑的資產",
+    "interface_and_licenses": "介面與授權條款",
+    "settings_import_export_locked": "匯入和匯出設定僅可在載入檔案前修改，顯示設定可隨時切換。"
 }

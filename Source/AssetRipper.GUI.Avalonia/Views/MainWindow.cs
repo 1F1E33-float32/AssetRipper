@@ -103,6 +103,9 @@ internal sealed class MainWindow : Window
 	private bool _exporting;
 	private bool _loading;
 	private bool _showingSearch;
+	private AssetPathDisplayMode _browserPathMode = GameFileLoader.Settings.ExportSettings.AssetPathDisplayMode;
+	private List<BrowserItem>? _internalPathItems;
+	private CancellationTokenSource? _pathIndexCancellation;
 	private string? _lastExportOutputPath;
 	private string _contextPathToCopy = "";
 
@@ -417,12 +420,14 @@ internal sealed class MainWindow : Window
 		};
 
 		ActivityLogService.Instance.Changed += QueueStatusRefresh;
+		_activityLogView.CancelProgressRequested += () => _pathIndexCancellation?.Cancel();
 
 		AddHandler(KeyDownEvent, OnWorkspaceKeyDown, RoutingStrategies.Tunnel);
 		Opened += (_, _) => _stripScroll.Focus();
 		Closed += (_, _) =>
 		{
 			_closed = true;
+			_pathIndexCancellation?.Cancel();
 			ActivityLogService.Instance.Changed -= QueueStatusRefresh;
 			_layoutFrames.Stop();
 			_fadeFrames.Stop();
@@ -1101,6 +1106,11 @@ internal sealed class MainWindow : Window
 		try
 		{
 			await Task.Run(() => GameFileLoader.LoadAndProcess(paths));
+			_internalPathItems = null;
+			if (GameFileLoader.Settings.ExportSettings.AssetPathDisplayMode == AssetPathDisplayMode.InternalPaths)
+			{
+				await PrepareInternalPathsAsync();
+			}
 			BuildRootBrowser();
 		}
 		catch (Exception ex)
@@ -1123,6 +1133,7 @@ internal sealed class MainWindow : Window
 		}
 		_inspectorView.Inspect(null);
 		GameFileLoader.Reset();
+		_internalPathItems = null;
 		ClearAllColumns();
 		_selectedLeaf = null;
 		_selectedLeafDepth = null;
@@ -1368,6 +1379,11 @@ internal sealed class MainWindow : Window
 
 	private void BuildRootBrowser()
 	{
+		if (_closed || _pathIndexCancellation is not null)
+		{
+			return;
+		}
+		_browserPathMode = GameFileLoader.Settings.ExportSettings.AssetPathDisplayMode;
 		_showingSearch = false;
 		ClearAllColumns();
 		_selectedLeaf = null;
@@ -1384,7 +1400,10 @@ internal sealed class MainWindow : Window
 		}
 
 		_welcomeOverlay.IsVisible = false;
-		List<BrowserItem> rootItems = BrowserFolderBuilder.BuildRoot(GameFileLoader.GameBundle);
+		List<BrowserItem> rootItems =
+			_browserPathMode == AssetPathDisplayMode.InternalPaths && _internalPathItems is not null
+				? _internalPathItems
+				: BrowserFolderBuilder.BuildRoot(GameFileLoader.GameBundle);
 		ColumnView rootCol = CreateColumn(0, rootItems, animate: true);
 		_columns.Add(rootCol);
 		_columnsPanel.Children.Insert(0, rootCol);
@@ -1420,6 +1439,53 @@ internal sealed class MainWindow : Window
 		if (_loading || _exporting)
 			return;
 		item = column.ResolveItem(item);
+		if (item.Target is MountedAsset or IndexedEntry)
+		{
+			_loading = true;
+			RefreshToolbarAndDock();
+			using IDisposable task = ActivityLogService.Instance.BeginTask(string.Format(Localization.LoadingInternalAsset, item.Name));
+			try
+			{
+				MountedAsset? mountedAsset = item.Target as MountedAsset;
+				IndexedEntry source = mountedAsset?.Source ?? (IndexedEntry)item.Target;
+				AssetCollection collection = (AssetCollection)await Task.Run(() => GameFileLoader.LoadMountedEntry(source.Archive, source.Entry));
+				BrowserItem original = item;
+				if (mountedAsset is not null)
+				{
+					IUnityObjectBase asset =
+						collection.TryGetAsset(mountedAsset.PathId)
+						?? throw new InvalidDataException($"Missing PathID {mountedAsset.PathId} in {source.Entry.Name}.");
+					item = BrowserFolderBuilder.CreateAssetItem(asset, item.SecondaryPath, item.Name);
+				}
+				else
+				{
+					List<BrowserItem> children = BrowserFolderBuilder
+						.BuildCollectionItems(collection)
+						.Where(child => child.Target is IUnityObjectBase asset && !source.MappedPathIds.Contains(asset.PathID))
+						.ToList();
+					item = new BrowserItem
+					{
+						Name = item.Name,
+						Kind = BrowserItemKind.PathFolder,
+						Icon = item.Icon,
+						IsContainer = true,
+						Target = children,
+						Meta = children.Count.ToString(),
+					};
+				}
+				column.SetLoadedItem(original, item);
+			}
+			catch (Exception error)
+			{
+				ActivityLogService.Instance.ReportError(Localization.InternalAssetLoadFailed, error);
+				return;
+			}
+			finally
+			{
+				_loading = false;
+				RefreshToolbarAndDock();
+			}
+		}
 		if (item.Kind == BrowserItemKind.MountedEntry && item.Target is ValueTuple<GameArchive, GameArchiveEntry> mounted)
 		{
 			_loading = true;
@@ -1564,6 +1630,15 @@ internal sealed class MainWindow : Window
 
 	private void NavigateToCollection(AssetCollection collection, IUnityObjectBase? assetToSelect)
 	{
+		if (_browserPathMode == AssetPathDisplayMode.InternalPaths)
+		{
+			BuildRootBrowser();
+			if ((assetToSelect ?? collection.FirstOrDefault()) is { } asset && _columns.Count > 0)
+			{
+				SelectAssetInColumn(0, asset);
+			}
+			return;
+		}
 		// Build bundle ancestor chain from root GameBundle down to collection.Bundle
 		List<Bundle> chain = new();
 		Bundle? cur = collection.Bundle;
@@ -1590,7 +1665,105 @@ internal sealed class MainWindow : Window
 			depth++;
 			if (assetToSelect is not null && depth < _columns.Count)
 			{
-				_columns[depth].SelectTarget(assetToSelect, raiseEvent: true);
+				SelectAssetInColumn(depth, assetToSelect);
+			}
+		}
+	}
+
+	private void SelectAssetInColumn(int depth, IUnityObjectBase asset)
+	{
+		List<BrowserItem> path = [];
+		if (AssetPathTree.TryFindAsset(_columns[depth].Items, asset, path))
+		{
+			foreach (BrowserItem item in path)
+			{
+				if (depth >= _columns.Count || !_columns[depth].SelectTarget(item.Target))
+				{
+					break;
+				}
+				depth++;
+			}
+		}
+	}
+
+	private async Task RefreshAssetPathDisplayAsync()
+	{
+		IUnityObjectBase? selected = _selectedLeaf?.Target as IUnityObjectBase;
+		if (GameFileLoader.IsLoaded && GameFileLoader.Settings.ExportSettings.AssetPathDisplayMode == AssetPathDisplayMode.InternalPaths)
+		{
+			await PrepareInternalPathsAsync();
+		}
+		BuildRootBrowser();
+		if (selected is not null && !_closed)
+		{
+			NavigateToCollection(selected.Collection, selected);
+		}
+	}
+
+	private async Task PrepareInternalPathsAsync()
+	{
+		if (_internalPathItems is not null)
+		{
+			return;
+		}
+		bool wasLoading = _loading;
+		_loading = true;
+		ClearAllColumns();
+		_selectedLeaf = null;
+		_inspectorView.Inspect(null);
+		_welcomeOverlay.IsVisible = false;
+		using CancellationTokenSource cancellation = new();
+		_pathIndexCancellation = cancellation;
+		ActivityLogService activity = ActivityLogService.Instance;
+		using IDisposable task = activity.BeginTask(Localization.IndexingInternalPaths);
+		activity.SetProgress(new(Localization.IndexingInternalPaths, 0));
+		RefreshToolbarAndDock();
+		try
+		{
+			_internalPathItems = await Task.Run(() =>
+				GameFileLoader.MountedGame is { } mounted
+					? MountedPathIndex.Build(
+						mounted,
+						progress =>
+							activity.SetProgress(
+								new(
+									string.Format(
+										Localization.InternalPathIndexProgress,
+										progress.Completed,
+										progress.Total,
+										progress.Paths,
+										progress.Failed,
+										progress.CurrentArchive
+									),
+									progress.Total == 0 ? 0 : (double)progress.Completed / progress.Total
+								)
+							),
+						cancellation.Token
+					)
+					: AssetPathTree.Build(GameFileLoader.GameBundle.FetchAssetCollections().ToList(), cancellation.Token)
+			);
+			cancellation.Token.ThrowIfCancellationRequested();
+			activity.SetStatus(Localization.InternalPathsReady);
+		}
+		catch (OperationCanceledException)
+		{
+			_internalPathItems = null;
+			GameFileLoader.Settings.ExportSettings.AssetPathDisplayMode = AssetPathDisplayMode.ArchiveStructure;
+			activity.SetStatus(Localization.InternalPathIndexCancelled);
+		}
+		catch (Exception error)
+		{
+			GameFileLoader.Settings.ExportSettings.AssetPathDisplayMode = AssetPathDisplayMode.ArchiveStructure;
+			activity.ReportError(Localization.InternalPathIndexFailed, error);
+		}
+		finally
+		{
+			_pathIndexCancellation = null;
+			_loading = wasLoading;
+			activity.SetProgress(null);
+			if (!_closed)
+			{
+				RefreshToolbarAndDock();
 			}
 		}
 	}
@@ -1895,8 +2068,12 @@ internal sealed class MainWindow : Window
 		RefreshToolbarAndDock();
 	}
 
-	private void ToggleSettings()
+	private async void ToggleSettings()
 	{
+		if (_loading || _exporting)
+		{
+			return;
+		}
 		ClosePopups();
 		_showSettings = !_showSettings;
 		_settingsLayer.IsVisible = _showSettings;
@@ -1909,6 +2086,10 @@ internal sealed class MainWindow : Window
 		}
 		else
 		{
+			if (_browserPathMode != GameFileLoader.Settings.ExportSettings.AssetPathDisplayMode)
+			{
+				await RefreshAssetPathDisplayAsync();
+			}
 			TriggerLayoutUpdate(animate: false);
 			_stripScroll.Focus();
 		}
@@ -2158,10 +2339,19 @@ internal sealed class MainWindow : Window
 		bool busy = snapshot.IsBusy || _loading || _exporting;
 		bool failed = snapshot.ErrorCount > 0;
 		bool hasWarning = snapshot.WarningCount > 0;
+		GlassSurface.SetTooltip(_statusTile, snapshot.Progress?.Label ?? snapshot.ActiveJobLabel ?? "Activity");
 
 		if (busy)
 		{
-			if (_statusIconHost.Child is not VnlensSpinner)
+			if (snapshot.Progress is { } progress)
+			{
+				if (_statusIconHost.Child is not ProgressRingControl)
+				{
+					_statusIconHost.Child = new ProgressRingControl(15);
+				}
+				((ProgressRingControl)_statusIconHost.Child).Progress = progress.Fraction;
+			}
+			else if (_statusIconHost.Child is not VnlensSpinner)
 			{
 				_statusIconHost.Child = new VnlensSpinner(15, Palette.Accent);
 			}

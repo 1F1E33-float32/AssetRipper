@@ -74,7 +74,7 @@ internal sealed class SettingsView : Grid
 			bannerGrid.Children.Add(
 				new TextBlock
 				{
-					Text = Localization.SettingsCanOnlyBeChangedBeforeLoadingFiles,
+					Text = Localization.SettingsImportExportLocked,
 					FontFamily = Palette.UiFont,
 					FontSize = 12,
 					Foreground = Palette.Warning,
@@ -368,8 +368,19 @@ internal sealed class SettingsView : Grid
 			}
 		);
 
-		// LANGUAGE & LICENSES SECTION
-		AddSectionHeader("INTERFACE & LICENSES", topMargin: 16);
+		// INTERFACE & LICENSES SECTION
+		AddSectionHeader(Localization.InterfaceAndLicenses.ToUpperInvariant(), topMargin: 16);
+		AddDropDownCard(
+			Localization.AssetPathDisplayTitle,
+			SettingsCatalog.AssetPathDisplayModes(),
+			cfg.ExportSettings.AssetPathDisplayMode,
+			true,
+			value =>
+			{
+				cfg.ExportSettings.AssetPathDisplayMode = value;
+				Persist(cfg);
+			}
+		);
 		AddLanguageCard(cfg);
 		AddLicensesCard();
 	}

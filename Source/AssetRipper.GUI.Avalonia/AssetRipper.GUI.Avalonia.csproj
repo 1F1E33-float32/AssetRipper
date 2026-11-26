@@ -13,6 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="AssetRipper.Tests" />
     <AvaloniaResource Include="Assets/Icons/Unity/*.svg" />
   </ItemGroup>
 

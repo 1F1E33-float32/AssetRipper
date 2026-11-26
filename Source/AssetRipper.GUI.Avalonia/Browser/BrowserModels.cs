@@ -17,6 +17,7 @@ internal enum BrowserItemKind
 {
 	MountedArchive,
 	MountedEntry,
+	MountedAsset,
 	Bundle,
 	Collection,
 	Scene,
@@ -25,6 +26,7 @@ internal enum BrowserItemKind
 	FailedFile,
 	ScenesGroup,
 	SearchGroup,
+	PathFolder,
 }
 
 internal sealed class BrowserItem
@@ -48,7 +50,12 @@ internal sealed class BrowserItem
 			return IconKind.Sprite;
 		}
 		// Class IDs also cover objects read directly from a type tree without generated interfaces.
-		return (ClassIDType)asset.ClassID switch
+		IconKind icon = ClassifyAssetIcon(asset.ClassID);
+		return icon == IconKind.File && asset is IImageTexture ? IconKind.Texture : icon;
+	}
+
+	public static IconKind ClassifyAssetIcon(int classID) =>
+		(ClassIDType)classID switch
 		{
 			ClassIDType.GameObject => IconKind.GameObject,
 			ClassIDType.Transform => IconKind.Transform,
@@ -188,9 +195,8 @@ internal sealed class BrowserItem
 			or ClassIDType.PhysicsManager
 			or ClassIDType.Physics2DSettings
 			or ClassIDType.AudioManager => IconKind.Config,
-			_ => asset is IImageTexture ? IconKind.Texture : IconKind.File,
+			_ => IconKind.File,
 		};
-	}
 
 	public static string GetKindLabel(BrowserItem item) =>
 		item.Kind switch
@@ -203,6 +209,7 @@ internal sealed class BrowserItem
 			BrowserItemKind.ResourceFile => Localization.Resources,
 			BrowserItemKind.FailedFile => Localization.FailedFiles,
 			BrowserItemKind.Asset => item.ClassName ?? "Asset",
+			BrowserItemKind.MountedAsset => item.ClassName ?? "Asset",
 			_ => "Folder",
 		};
 }
@@ -261,6 +268,7 @@ internal static class BrowserFolderBuilder
 			BrowserItemKind.Scene when container.Target is SceneDefinition scene => BuildSceneItems(scene),
 			BrowserItemKind.ScenesGroup when container.Target is List<SceneDefinition> scenes => BuildScenesGroupItems(scenes),
 			BrowserItemKind.SearchGroup when container.Target is List<SearchHit> hits => BuildSearchHitItems(hits),
+			BrowserItemKind.PathFolder when container.Target is List<BrowserItem> children => children,
 			_ => [],
 		};
 	}
@@ -453,9 +461,9 @@ internal static class BrowserFolderBuilder
 		return items;
 	}
 
-	public static BrowserItem CreateAssetItem(IUnityObjectBase asset, string? collectionLabel = null)
+	public static BrowserItem CreateAssetItem(IUnityObjectBase asset, string? collectionLabel = null, string? displayName = null)
 	{
-		string name = asset.GetBestName();
+		string name = displayName ?? asset.GetBestName();
 		if (string.IsNullOrWhiteSpace(name))
 		{
 			name = $"{asset.ClassName} #{asset.PathID}";
@@ -468,7 +476,7 @@ internal static class BrowserFolderBuilder
 			IsContainer = false,
 			Target = asset,
 			ClassName = asset.ClassName,
-			Meta = collectionLabel is not null ? $"{asset.ClassName}" : asset.ClassName,
+			Meta = asset.ClassName,
 			SecondaryPath = collectionLabel,
 		};
 	}

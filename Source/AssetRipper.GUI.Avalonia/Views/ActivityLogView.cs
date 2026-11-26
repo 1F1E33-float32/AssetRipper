@@ -1,6 +1,7 @@
 using AssetRipper.GUI.Avalonia.Controls;
 using AssetRipper.GUI.Avalonia.Services;
 using AssetRipper.GUI.Avalonia.Theme;
+using AssetRipper.GUI.Localizations;
 using AssetRipper.Import.Logging;
 using Avalonia;
 using Avalonia.Controls;
@@ -20,6 +21,9 @@ internal sealed class ActivityLogView : Grid
 	private readonly SelectableTextBlock _text;
 	private readonly ScrollViewer _scroll;
 	private readonly TextBlock _summary;
+	private readonly TextBlock _progressLabel;
+	private readonly ProgressBar _progressBar;
+	private readonly VnlensButton _cancelProgress;
 	private readonly VnlensButton _showOutput;
 	private string? _outputPath;
 	private bool _scrollToTail;
@@ -29,6 +33,7 @@ internal sealed class ActivityLogView : Grid
 	private bool _selecting;
 
 	public event Action<string>? ShowOutputRequested;
+	public event Action? CancelProgressRequested;
 
 	public ActivityLogView()
 	{
@@ -43,7 +48,36 @@ internal sealed class ActivityLogView : Grid
 			Foreground = Palette.Secondary,
 			Margin = new Thickness(6, 4, 6, 8),
 		};
-		Children.Add(_summary);
+		_progressLabel = new TextBlock
+		{
+			FontFamily = Palette.UiFont,
+			FontSize = 11,
+			Foreground = Palette.Accent,
+			TextWrapping = TextWrapping.Wrap,
+			Margin = new Thickness(6, 0, 6, 4),
+			IsVisible = false,
+		};
+		_progressBar = new ProgressBar
+		{
+			Minimum = 0,
+			Maximum = 1,
+			Height = 4,
+			Foreground = Palette.Accent,
+			Margin = new Thickness(6, 0, 6, 8),
+			IsVisible = false,
+		};
+		_cancelProgress = new VnlensButton(label: Localization.CancelPathIndex, ghost: true, height: 24)
+		{
+			HorizontalAlignment = HorizontalAlignment.Left,
+			IsVisible = false,
+		};
+		_cancelProgress.Clicked += () => CancelProgressRequested?.Invoke();
+		StackPanel header = new();
+		header.Children.Add(_summary);
+		header.Children.Add(_progressLabel);
+		header.Children.Add(_progressBar);
+		header.Children.Add(_cancelProgress);
+		Children.Add(header);
 
 		_text = new SelectableTextBlock
 		{
@@ -140,6 +174,12 @@ internal sealed class ActivityLogView : Grid
 
 	public void Refresh(ActivityLogSnapshot snapshot, string? outputPath)
 	{
+		_progressLabel.IsVisible = _progressBar.IsVisible = _cancelProgress.IsVisible = snapshot.Progress is not null;
+		if (snapshot.Progress is { } progress)
+		{
+			_progressLabel.Text = progress.Label;
+			_progressBar.Value = progress.Fraction;
+		}
 		_summary.Text =
 			$"{snapshot.LineCount} / {ActivityLogService.MaximumLines} lines"
 			+ $" · Error {snapshot.ErrorCount} · Warning {snapshot.WarningCount}"
